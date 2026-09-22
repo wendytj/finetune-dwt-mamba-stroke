@@ -66,9 +66,9 @@ CONFIG = {
     "learning_rate": 1e-4,
     "effective_lr": 1e-4,
     "weight_decay": 1e-2,
-    "max_epochs": 50,
-    "warmup_epochs": 5,
-    "early_stop_patience": 15,
+    "max_epochs": 100,
+    "warmup_epochs": 10,
+    "early_stop_patience": 25,
     "early_stop_delta": 0.000,
 }
 
