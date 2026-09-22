@@ -41,6 +41,4 @@ wheels/*.whl
 wheels/
 data/
 
-debugger.py
-
 MDs/
