@@ -30,7 +30,8 @@ TARGET_MODULES = [
     "out_proj",
     "proj_fused",
     "proj_latent",
-    "classifier"
+    "classifier",
+    "x_proj",      # ✨ Proyeksi internal Mamba
 ]
 
 def create_base_model():
@@ -127,3 +128,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python fine_tuning/count_param.py --lora_r 64 --lora_a 128 --lora_dropout 0.0 --prodial_r_eps 64 --prodial_r_b 128

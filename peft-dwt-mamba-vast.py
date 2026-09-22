@@ -23,7 +23,7 @@ from loggers.experiment_logger import ExperimentLogger
 from tqdm import tqdm
 
 CONFIG = {
-    "experiment_code": "lora-801010-default-param",   
+    "experiment_code": "lora-801010-default-param-2",   
     "seed": 42,
     
     "npz_path": "data/turkey_1channel.npz", # JANGAN LUPA PILIH CHANNEL
@@ -53,7 +53,8 @@ CONFIG = {
         "out_proj", 
         "proj_fused", 
         "proj_latent", 
-        "classifier"
+        "classifier",
+        "x_proj"
     ],
     "lora_r": 64,                 # rank
     "lora_alpha": 128,            # LoRA / DoRA only
@@ -63,11 +64,11 @@ CONFIG = {
     "prodial_r_b": 128,
     
     "optimizer": "AdamW",
-    "learning_rate": 1e-4,
+    "learning_rate": 1e-3,
     "effective_lr": 1e-4,
     "weight_decay": 1e-2,
     "max_epochs": 100,
-    "warmup_epochs": 10,
+    "warmup_epochs": 5,
     "early_stop_patience": 25,
     "early_stop_delta": 0.000,
 }
@@ -161,12 +162,10 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, gpu_transfo
 
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(dataloader):
             if use_bf16:
-                # 2. Gunakan trainable_params yang sudah di-cache
                 torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
                 optimizer.step()
             else:
                 scaler.unscale_(optimizer)
-                # 2. Gunakan trainable_params yang sudah di-cache
                 torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
@@ -263,7 +262,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
     elif hasattr(train_loader.dataset, 'targets'):
         train_labels = torch.tensor(train_loader.dataset.targets)
     else:
-        # Fallback jika harus iterasi, tapi ubah num_workers=0 agar tidak memicu multiprocessing spike
         train_labels = torch.tensor([label for _, label in train_loader.dataset])
 
     train_labels = train_labels.view(-1).long()
@@ -272,8 +270,8 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
     total_samples = len(train_labels)
     num_classes = CONFIG["num_classes"]
     
-    class_weights = total_samples / (num_classes * class_counts.float())
-    class_weights = class_weights.to(device)
+    raw_weights = torch.sqrt(total_samples / (num_classes * class_counts.float()))
+    class_weights = torch.clamp(raw_weights, min=0.5, max=3.0).to(device)
     
     print(f"⚖️ [Class Imbalance Handled] Distribusi Label Train: {class_counts.tolist()}")
     print(f"⚖️ [Class Weights Dihitung]  : {class_weights.tolist()}")
@@ -307,9 +305,8 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         milestones=[CONFIG["warmup_epochs"]]
     )
 
-    # Inisialisasi Tracker & File Path Dua Model
     start_epoch = 1
-    best_val_mcc = -1.0  # Rentang MCC: -1.0 s.d +1.0
+    best_val_mcc = -1.0
     best_val_loss = float("inf")
     best_mcc_epoch = -1
     best_loss_epoch = -1
@@ -324,7 +321,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         print(f"🔄 Checkpoint terputus ditemukan! Memuat state dari: {checkpoint_path}")
         checkpoint = torch.load(checkpoint_path, map_location=device)
         
-        # Restore state
         raw_model.load_state_dict(checkpoint["model_state"])
         optimizer.load_state_dict(checkpoint["optimizer_state"])
 
@@ -343,6 +339,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         best_loss_epoch = checkpoint.get("best_loss_epoch", -1)
         patience_counter = checkpoint.get("patience_counter", 0)
         
+        # ✨ Muat riwayat dari CSV
         logger.load_history_from_csv()
         print(f"✅ Auto-resume sukses! Melanjutkan dari Epoch {start_epoch} | Patience Sisa: [{patience_counter}/{CONFIG['early_stop_patience']}]")
 
@@ -361,33 +358,28 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
 
             scheduler.step()
             
-            # Ekstrak metrik validasi
             val_metrics, _ = logger.compute_metrics(*val_eval)
             val_f1 = val_metrics["global_metrics"]["f1_score_macro"]
             val_mcc = val_metrics["global_metrics"]["mcc"]
             current_lr = optimizer.param_groups[0]['lr']
 
-            # 1. Evaluasi Perbaikan Metrik Validasi
             is_mcc_improved = val_mcc > (best_val_mcc + CONFIG["early_stop_delta"])
             is_loss_improved = val_loss < (best_val_loss - CONFIG["early_stop_delta"])
 
             status_notes = []
 
-            # 2. Simpan Checkpoint 1: Best Val MCC
             if is_mcc_improved:
                 best_val_mcc = val_mcc
                 best_mcc_epoch = epoch
                 safe_atomic_save(raw_model.state_dict(), path_best_val_mcc)
                 status_notes.append(f"🎯 Best Val MCC Saved ({val_mcc:.4f})")
 
-            # 3. Simpan Checkpoint 2: Best Val Loss
             if is_loss_improved:
                 best_val_loss = val_loss
                 best_loss_epoch = epoch
                 safe_atomic_save(raw_model.state_dict(), path_best_val_loss)
                 status_notes.append(f"📉 Best Val Loss Saved ({val_loss:.4f})")
 
-            # Reset Early Stop Patience jika SALAH SATU metrik membaik
             if is_mcc_improved or is_loss_improved:
                 patience_counter = 0
                 status_msg = "  --> " + " | ".join(status_notes)
@@ -395,7 +387,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                 patience_counter += 1
                 status_msg = f"  --> ⏳ Patience: [{patience_counter}/{CONFIG['early_stop_patience']}]"
 
-            # Log ke Logger
+            # 1. Log ke memory
             logger.log_epoch(
                 epoch=epoch,
                 train_loss=train_loss,
@@ -408,7 +400,9 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                 patience=patience_counter
             )
 
-            # Console Print
+            # ✨ 2. PERBAIKAN KRUSIAL: Ekspor CSV langsung tiap epoch agar disk selalu ter-update!
+            logger.export_csv()
+
             print(f"Epoch [{epoch:03d}/{CONFIG['max_epochs']}] | LR: {current_lr:.6f} | "
                   f"Train Loss: {train_loss:.4f} - Acc: {train_acc:.4f} | "
                   f"Val Loss: {val_loss:.4f} - Acc: {val_acc:.4f} - F1: {val_f1:.4f} - MCC: {val_mcc:.4f}"
@@ -430,11 +424,9 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                 checkpoint_path,
             )
 
-            # Cleaning Memory
             gc.collect()
             torch.cuda.empty_cache()
 
-            # Early Stopping Trigger
             if patience_counter >= CONFIG["early_stop_patience"]:
                 print(f"\n🛑 Early stopping dipicu pada epoch {epoch} (Val MCC & Val Loss stagnan selama {patience_counter} epoch).")
                 break
@@ -475,8 +467,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             proj_dim=CONFIG["proj_dim"]
         ).to(device).to(memory_format=torch.channels_last) # type: ignore
 
-        # 2. Re-apply PEFT wrapper yang identik
-
         active_r = CONFIG["prodial_r_eps"] if CONFIG["peft_method"] == "prodial" else CONFIG["lora_r"]
 
         eval_m = apply_peft(
@@ -489,13 +479,9 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             r_b=CONFIG["prodial_r_b"]
         )
 
-        # 3. Load state_dict checkpoint
         eval_m.load_state_dict(torch.load(ckpt_path, map_location=device))
-
-        # 4. Merge PEFT untuk zero-latency evaluation
         eval_m = merge_peft_and_unload(eval_m)
 
-        # 5. Evaluate
         _, _, tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
         _, _, va_eval = evaluate(eval_m, val_loader, criterion, device, gpu_eval_transform, desc=f"Eval Val ({desc_tag})")
         
@@ -503,7 +489,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         if test_loader is not None:
             _, _, te_eval = evaluate(eval_m, test_loader, criterion, device, gpu_eval_transform, desc=f"Testing ({desc_tag})")
         
-        # Cleanup VRAM setelah evaluasi checkpoint selesai
         del eval_m
         gc.collect()
         torch.cuda.empty_cache()
@@ -520,11 +505,12 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
     else:
         tr_loss, va_loss, te_loss = eval_and_merge_checkpoint(path_best_val_loss, f"Best Loss (Ep {best_loss_epoch})")
 
-    # 2. Plot kurva menggunakan acuan test dari model Best MCC
+    # ✨ PERBAIKAN: Pastikan CSV final diekspor dan kurva digambar di alur normal!
+    logger.export_csv()
+
     if te_mcc is not None and te_mcc[0] is not None:
         logger.plot_learning_curves(test_eval=te_mcc, filename="training_dashboard.png")
 
-    # 3. Helper kecil untuk mengubah tuple (y_true, y_pred, y_probs) menjadi dictionary metrik standar logger
     def wrap_eval_results(eval_tuple):
         if eval_tuple is None or eval_tuple[0] is None:
             return None
@@ -535,17 +521,15 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             "per_class_metrics": metrics_dict["per_class_metrics"]
         }
 
-    # 4. Susun struktur JSON komprehensif yang memuat model MCC dan Loss secara terpisah & lengkap
     final_json_data = {
         "dataset_info": {
             "num_classes": CONFIG["num_classes"],
             "class_labels": logger.class_names if hasattr(logger, "class_names") else ["Normal", "Ischemia", "Bleeding"],
-            "train_class_counts": class_counts.tolist(),  # ✨ Jumlah sampel tiap kelas di train set
-            "class_weights": class_weights.cpu().tolist() # ✨ Bobot loss yang diberikan ke masing-masing kelas
+            "train_class_counts": class_counts.tolist(),
+            "class_weights": class_weights.cpu().tolist()
         },
         "hyperparameters": logger.hparams if hasattr(logger, "hparams") else CONFIG,
         
-        # Model Terbaik Berdasarkan Validation MCC
         "model_by_val_mcc": {
             "criterion": "best_val_mcc",
             "best_epoch": best_mcc_epoch,
@@ -555,7 +539,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             "test_results": wrap_eval_results(te_mcc)
         },
         
-        # Model Terbaik Berdasarkan Validation Loss
         "model_by_val_loss": {
             "criterion": "best_val_loss",
             "best_epoch": best_loss_epoch,
@@ -566,7 +549,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         }
     }
 
-    # 5. Simpan langsung ke file best_model_metrics.json
     summary_json_path = os.path.join(logger.save_dir, "best_model_metrics.json")
     with open(summary_json_path, "w", encoding="utf-8") as f:
         json.dump(final_json_data, f, indent=4)
@@ -690,6 +672,11 @@ def main():
         target_modules= CONFIG.get("target_modules", None), # type: ignore
     )
     raw_model = model
+
+    print("🔓 Membuka kunci (unfreezing) layer stem / conv_in awal...")
+    for name, param in model.named_parameters():
+        if "conv_in" in name or "stem" in name:
+            param.requires_grad = True
 
     trainable_p = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_p = sum(p.numel() for p in model.parameters())

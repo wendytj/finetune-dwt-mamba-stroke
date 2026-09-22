@@ -91,4 +91,4 @@ tmux attach -t "nama-sesi"              untuk masuk lagi ke sesinya
  
 tar -czvf log-exp-v5.tar.gz /workspace/pretrain-dwt-mamba/logs/exp-organcmnist-dwtmamba-v5/
 
-tmux new -d -s lora_1ch 'python peft-dwt-mamba-vast.py --experiment_code lora-1ch-r64-e100-w10 --npz_path data/turkey_1channel.npz --peft_method lora --lora_r 64 --lora_alpha 128 --lora_dropout 0 --max_epochs 100 --warmup_epochs 10 --num_workers 32 2>&1 | tee lora_1ch.log'
+tmux new -d -s lora_1ch 'python peft-dwt-mamba-vast.py --experiment_code lora-1ch-r64-e100-w10 --npz_path data/turkey_1channel.npz --peft_method lora --lora_r 64 --lora_alpha 128 --lora_dropout 0 --max_epochs 100 --warmup_epochs 10 --num_workers 32'
