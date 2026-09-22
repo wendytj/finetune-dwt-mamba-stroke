@@ -28,7 +28,7 @@ CONFIG = {
     
     "npz_path": "data/turkey_1channel.npz", # JANGAN LUPA PILIH CHANNEL
     "pretrained_path": "weights/pretrained_weights.pth",
-    "batch_size": 64,
+    "batch_size": 128,
     "eval_batch_size": 2048,
     "accumulation_steps": 1,
     "num_workers": 8,
