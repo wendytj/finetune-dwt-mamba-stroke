@@ -323,9 +323,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         
         raw_model.load_state_dict(checkpoint["model_state"])
         optimizer.load_state_dict(checkpoint["optimizer_state"])
-
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = CONFIG["effective_lr"]
         
         if "scheduler_state" in checkpoint:
             scheduler.load_state_dict(checkpoint["scheduler_state"])
