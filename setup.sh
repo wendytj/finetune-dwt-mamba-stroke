@@ -26,12 +26,12 @@ else
     echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
 fi
 
-if [ ! -f "data/turkey_3channel.npz" ]; then
-    echo "Downloading dataset Turkey 3-Channel..."
-    gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
-else
-    echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
-fi
+# if [ ! -f "data/turkey_3channel.npz" ]; then
+#     echo "Downloading dataset Turkey 3-Channel..."
+#     gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
+# else
+#     echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
+# fi
 
 # 2. Download Pretrained Weights
 if [ ! -f "weights/pretrained_weights.pth" ]; then

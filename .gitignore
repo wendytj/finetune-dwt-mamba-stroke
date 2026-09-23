@@ -44,3 +44,5 @@ data/
 MDs/
 
 logs-vastai/
+
+credentials.json
