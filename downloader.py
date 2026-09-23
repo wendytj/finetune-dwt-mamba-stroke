@@ -11,7 +11,6 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 def authenticate():
     creds = None
-    # Token akses disimpan agar tidak perlu login berkali-kali
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     
@@ -21,16 +20,10 @@ def authenticate():
         else:
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             
-            # Gunakan local server di port 8080 (OOB sudah dilarang oleh Google)
-            # open_browser=False mencegah error GUI di environment Vast.ai
-            print("\n" + "="*70)
-            print("Pastikan kamu sudah membuka SSH Tunnel di laptopmu:")
-            print("ssh -p 12591 root@137.175.76.24 -L 8080:localhost:8080")
-            print("="*70)
-            
+            # Gunakan port=0 agar sistem otomatis memilih port acak yang PASTI KOSONG
             creds = flow.run_local_server(
                 host='localhost',
-                port=8090,
+                port=0,
                 authorization_prompt_message='Buka URL berikut di browser laptop kamu:\n{url}',
                 success_message='Autentikasi Berhasil! Kamu bisa menutup tab browser ini.',
                 open_browser=False
