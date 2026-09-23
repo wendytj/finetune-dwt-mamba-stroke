@@ -19,19 +19,22 @@ def authenticate():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # Gunakan OOB / Console flow karena Vast.ai tidak punya browser GUI
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             
-            # Mendapatkan URL autentikasi untuk dibuka di browser laptop
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            # Gunakan local server di port 8080 (OOB sudah dilarang oleh Google)
+            # open_browser=False mencegah error GUI di environment Vast.ai
             print("\n" + "="*70)
-            print("1. Buka URL ini di browser laptop/komputer kamu:")
-            print(auth_url)
+            print("Pastikan kamu sudah membuka SSH Tunnel di laptopmu:")
+            print("ssh -p 12591 root@137.175.76.24 -L 8080:localhost:8080")
             print("="*70)
-            code = input("\n2. Salin dan tempel 'Authorization Code' dari browser di sini: ").strip()
             
-            flow.fetch_token(code=code)
-            creds = flow.credentials
+            creds = flow.run_local_server(
+                host='localhost',
+                port=8080,
+                authorization_prompt_message='Buka URL berikut di browser laptop kamu:\n{url}',
+                success_message='Autentikasi Berhasil! Kamu bisa menutup tab browser ini.',
+                open_browser=False
+            )
 
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
