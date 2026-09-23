@@ -1,68 +1,50 @@
 import os
 import sys
-from google.auth.transport.requests import Request
+import time
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# Scope penuh untuk Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-def authenticate():
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            
-            # Gunakan port=0 agar sistem otomatis memilih port acak yang PASTI KOSONG
-            creds = flow.run_local_server(
-                host='localhost',
-                port=0,
-                authorization_prompt_message='Buka URL berikut di browser laptop kamu:\n{url}',
-                success_message='Autentikasi Berhasil! Kamu bisa menutup tab browser ini.',
-                open_browser=False
-            )
-
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-
-    return creds
-
-def upload_file(file_path, folder_id=None):
+def upload_file(file_path):
     if not os.path.exists(file_path):
         print(f"Error: File '{file_path}' tidak ditemukan!")
         return
 
-    creds = authenticate()
+    if not os.path.exists('token.json'):
+        print("Error: token.json tidak ditemukan! Jalankan autentikasi ulang.")
+        return
+
+    # Ambil credential dari token.json yang sudah kamu buat tadi
+    creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     service = build('drive', 'v3', credentials=creds)
 
     file_name = os.path.basename(file_path)
+    file_size = os.path.getsize(file_path)
     file_metadata = {'name': file_name}
     
-    if folder_id:
-        file_metadata['parents'] = [folder_id]
-
-    media = MediaFileUpload(file_path, resumable=True)
+    # KUNCI: Potong file jadi chunk 5 MB agar progress LANGSUNG kelihatan tercetak
+    chunk_size = 5 * 1024 * 1024 
+    media = MediaFileUpload(file_path, chunksize=chunk_size, resumable=True)
     
-    print(f"\nMemulai upload '{file_name}' ke Google Drive...")
+    print(f"\nMemulai upload '{file_name}' ({file_size / (1024*1024):.2f} MB)...")
     request = service.files().create(body=file_metadata, media_body=media, fields='id, name')
     
     response = None
+    start_time = time.time()
+    
     while response is None:
         status, response = request.next_chunk()
         if status:
-            print(f"Progress: {int(status.progress() * 100)}%")
+            elapsed = time.time() - start_time
+            uploaded_mb = status.resumable_progress / (1024 * 1024)
+            speed_mbps = uploaded_mb / elapsed if elapsed > 0 else 0
+            pct = int(status.progress() * 100)
+            print(f"Progress: {pct}% | Uploaded: {uploaded_mb:.1f} MB | Speed: {speed_mbps:.2f} MB/s", flush=True)
 
     print(f"\n✅ Upload Selesai! File ID: {response.get('id')}")
 
 if __name__ == '__main__':
     target_file = sys.argv[1] if len(sys.argv) > 1 else '/workspace/finetune-dwt-mamba-stroke/logs/lora-801010-1ch-v1.tar.gz'
-    target_folder = sys.argv[2] if len(sys.argv) > 2 else None
-    
-    upload_file(target_file, target_folder)
+    upload_file(target_file)
