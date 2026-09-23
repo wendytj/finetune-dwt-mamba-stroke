@@ -386,7 +386,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             val_metrics, _ = logger.compute_metrics(*val_eval)
             val_f1 = val_metrics["global_metrics"]["f1_score_macro"]
             val_mcc = val_metrics["global_metrics"]["mcc"]
-            current_lr = optimizer.param_groups[0]['lr']
+            current_lr = optimizer.param_groups[1]['lr']
 
             is_mcc_improved = val_mcc > (best_val_mcc + CONFIG["early_stop_delta"])
             is_loss_improved = val_loss < (best_val_loss - CONFIG["early_stop_delta"])

@@ -101,3 +101,5 @@ tar -czvf lora-1ch-please-works.tar.gz /workspace/finetune-dwt-mamba-stroke/logs
 
 
 python fine_tuning/count_param.py --lora_r 32 --lora_a 64 --lora_dropout 0.0 --prodial_r_eps 32 --prodial_r_b 128 
+
+tmux new -s train 'python peft-dwt-mamba-vast.py --batch_size 64'

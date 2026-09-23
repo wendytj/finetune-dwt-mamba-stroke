@@ -60,7 +60,6 @@ class ExperimentLogger:
         df = pd.DataFrame(self.history)
         path = os.path.join(self.save_dir, filename)
         df.to_csv(path, index=False)
-        print(f"💾 File rekapitulasi CSV disimpan di: {path}")
         return path
     
     def load_history_from_csv(self, filename="training_history.csv"):
