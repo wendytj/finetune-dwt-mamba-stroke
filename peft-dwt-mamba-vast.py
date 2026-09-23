@@ -23,7 +23,7 @@ from loggers.experiment_logger import ExperimentLogger
 from tqdm import tqdm
 
 CONFIG = {
-    "experiment_code": "lora-801010-default-param-sanity",   
+    "experiment_code": "lora-801010-1ch-v1",   
     "seed": 42,
     
     "npz_path": "data/turkey_1channel.npz", # JANGAN LUPA PILIH CHANNEL
@@ -31,7 +31,7 @@ CONFIG = {
     "batch_size": 128,
     "eval_batch_size": 2048,
     "accumulation_steps": 1,
-    "num_workers": 8,
+    "num_workers": 32,
     "img_size": 224,
     
     # Arsitektur DWT-Mamba
@@ -72,7 +72,7 @@ CONFIG = {
     "effective_lr": 1e-4,
     "weight_decay": 1e-3,
     "max_epochs": 100,
-    "warmup_epochs": 5,
+    "warmup_epochs": 10,
     "early_stop_patience": 25,
     "early_stop_delta": 0.000,
 }
