@@ -121,7 +121,6 @@ def apply_prodial_to_model(
             if isinstance(child, nn.Linear) and any(target in name for target in target_modules):
                 try:
                     setattr(module_to_check, name, ProDiaLLinear(child, r_b=r_b, r_eps=r_eps))
-                    print(f"  ⚡ [ProDiaL Injected] -> {name}")
                 except ValueError as e:
                     print(f"  ⚠️ [ProDiaL Skipped] {name}: {e}")
             else:

@@ -18,12 +18,12 @@ apply_mamba_patch()
 
 from loaders.StrokeClassificationLoader import get_stroke_dataloaders
 from architectures.DWTMamba import DWTMamba
-from fine_tuning.peft_wrapper import apply_peft, merge_peft_and_unload
+from fine_tuning.peft_wrapper import apply_peft, merge_peft_and_unload, CONV_TARGET_MODULES
 from loggers.experiment_logger import ExperimentLogger
 from tqdm import tqdm
 
 CONFIG = {
-    "experiment_code": "lora-801010-default-param-2",   
+    "experiment_code": "lora-801010-default-param-sanity",   
     "seed": 42,
     
     "npz_path": "data/turkey_1channel.npz", # JANGAN LUPA PILIH CHANNEL
@@ -48,25 +48,29 @@ CONFIG = {
     
     # Configuration PEFT
     "peft_method": "lora",       # 'lora', 'dora', 'prodial', atau 'full'
-    "target_modules": [           # 5 Modul Standar DWTMamba PEFT
+    "target_modules": [          
         "in_proj", 
         "out_proj", 
+        "x_proj", 
         "proj_fused", 
         "proj_latent", 
-        "classifier",
-        "x_proj"
+        "classifier", 
+        "gate_fc.0",  # Linear pertama di MB_GSF
+        "gate_fc.2",  # Linear kedua di MB_GSF
+        "fc.2",       # Linear pertama di SqueezeAndExcitation
+        "fc.4"        # Linear kedua di SqueezeAndExcitation
     ],
-    "lora_r": 64,                 # rank
-    "lora_alpha": 128,            # LoRA / DoRA only
+    "lora_r": 32,                 # rank
+    "lora_alpha": 64,            # LoRA / DoRA only
     "lora_dropout": 0,        # LoRA / DoRA only
 
-    "prodial_r_eps": 64,  
+    "prodial_r_eps": 32,  
     "prodial_r_b": 128,
     
     "optimizer": "AdamW",
-    "learning_rate": 1e-3,
+    "learning_rate": 1e-4,
     "effective_lr": 1e-4,
-    "weight_decay": 1e-2,
+    "weight_decay": 1e-3,
     "max_epochs": 100,
     "warmup_epochs": 5,
     "early_stop_patience": 25,
@@ -278,13 +282,37 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
 
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
-    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    conv_params = []
+    peft_params = []
+
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if any(k in name for k in CONV_TARGET_MODULES):
+                conv_params.append(param)
+            else:
+                peft_params.append(param)
+
+    optimizer_grouped_parameters = [
+        {
+            'params': conv_params,
+            'lr': CONFIG["effective_lr"] * 0.1,  # Scaled LR (10% / 0.1x) untuk Layer Konvolusi
+            'weight_decay': CONFIG["weight_decay"]
+        },
+        {
+            'params': peft_params,
+            'lr': CONFIG["effective_lr"],        # Full LR (100% / 1.0x) untuk Adaptor PEFT & Classifier
+            'weight_decay': CONFIG["weight_decay"]
+        }
+    ]
+
     optimizer = optim.AdamW(
-        trainable_params, 
-        weight_decay=CONFIG["weight_decay"], 
-        lr=CONFIG["effective_lr"], 
+        optimizer_grouped_parameters,
         eps=1e-8
     )
+
+    print(f"⚙️ [Optimizer Grouping Aktif]")
+    print(f"   └─ Conv Layers (0.1x LR) : {len(conv_params)} tensor params | LR: {CONFIG['effective_lr'] * 0.1:.6f}")
+    print(f"   └─ PEFT/Head   (1.0x LR) : {len(peft_params)} tensor params | LR: {CONFIG['effective_lr']:.6f}")
 
     scheduler_warmup = LinearLR(
         optimizer, 
@@ -476,8 +504,12 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             r_b=CONFIG["prodial_r_b"]
         )
 
+        eval_m = eval_m.to(device)
+
         eval_m.load_state_dict(torch.load(ckpt_path, map_location=device))
         eval_m = merge_peft_and_unload(eval_m)
+
+        eval_m = eval_m.to(device).to(memory_format=torch.channels_last) # type: ignore
 
         _, _, tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
         _, _, va_eval = evaluate(eval_m, val_loader, criterion, device, gpu_eval_transform, desc=f"Eval Val ({desc_tag})")
@@ -668,12 +700,8 @@ def main():
         r_b=CONFIG["prodial_r_b"],
         target_modules= CONFIG.get("target_modules", None), # type: ignore
     )
+    model = model.to(device).to(memory_format=torch.channels_last) # type: ignore
     raw_model = model
-
-    print("🔓 Membuka kunci (unfreezing) layer stem / conv_in awal...")
-    for name, param in model.named_parameters():
-        if "conv_in" in name or "stem" in name:
-            param.requires_grad = True
 
     trainable_p = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_p = sum(p.numel() for p in model.parameters())
