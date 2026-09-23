@@ -701,6 +701,12 @@ def main():
         target_modules= CONFIG.get("target_modules", None), # type: ignore
     )
     model = model.to(device).to(memory_format=torch.channels_last) # type: ignore
+
+    if hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+    elif hasattr(model, "set_grad_checkpointing"):
+        model.set_grad_checkpointing(True)
+
     raw_model = model
 
     trainable_p = sum(p.numel() for p in model.parameters() if p.requires_grad)
