@@ -18,12 +18,12 @@ apply_mamba_patch()
 
 from loaders.StrokeClassificationLoader import get_stroke_dataloaders
 from architectures.DWTMamba import DWTMamba
-from fine_tuning.peft_wrapper import apply_peft, merge_peft_and_unload, CONV_TARGET_MODULES
+from fine_tuning.peft_wrapper import apply_peft, CONV_TARGET_MODULES
 from loggers.experiment_logger import ExperimentLogger
 from tqdm import tqdm
 
 CONFIG = {
-    "experiment_code": "lora-801010-1ch-v1",   
+    "experiment_code": "dora-801010-1ch-v1",   
     "seed": 42,
     
     "npz_path": "data/turkey_1channel.npz", # JANGAN LUPA PILIH CHANNEL
@@ -47,18 +47,13 @@ CONFIG = {
     "proj_dim": 256,
     
     # Configuration PEFT
-    "peft_method": "lora",       # 'lora', 'dora', 'prodial', atau 'full'
+    "peft_method": "dora",       # 'lora', 'dora', 'prodial', atau 'full'
     "target_modules": [          
         "in_proj", 
         "out_proj", 
-        "x_proj", 
         "proj_fused", 
         "proj_latent", 
         "classifier", 
-        "gate_fc.0",  # Linear pertama di MB_GSF
-        "gate_fc.2",  # Linear kedua di MB_GSF
-        "fc.2",       # Linear pertama di SqueezeAndExcitation
-        "fc.4"        # Linear kedua di SqueezeAndExcitation
     ],
     "lora_r": 32,                 # rank
     "lora_alpha": 64,            # LoRA / DoRA only
@@ -145,19 +140,23 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, gpu_transfo
 
     for i, (images, labels) in enumerate(pbar):
         images = images.to(device, non_blocking=True)
-        # Squeeze dimensi (B, 1) -> (B,) dan konversi ke long
         labels = labels.to(device, non_blocking=True).view(-1).long()
 
         with torch.no_grad():
             images = gpu_transform(images)
         
-        # Memastikan format memori channels_last tetap terjaga setelah augmentasi
         images = images.to(memory_format=torch.channels_last)
 
         with torch.autocast(device_type="cuda", dtype=amp_dtype):
             outputs = model(images)
             loss = criterion(outputs, labels)
             loss_scaled = loss / accumulation_steps
+
+        # 🛡️ JARINGAN PENGAMAN 1: Lewati batch jika Loss bernilai NaN / Inf
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"\n⚠️ [Warning] Loss NaN/Inf terdeteksi pada iterasi {i}! Membatalkan step batch ini...")
+            optimizer.zero_grad(set_to_none=True)
+            continue
 
         if use_bf16:
             loss_scaled.backward()
@@ -166,31 +165,40 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, gpu_transfo
 
         if (i + 1) % accumulation_steps == 0 or (i + 1) == len(dataloader):
             if use_bf16:
-                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
-                optimizer.step()
+                # 🛡️ JARINGAN PENGAMAN 2: Periksa norm gradien pada BF16
+                grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                if torch.isnan(grad_norm) or torch.isinf(grad_norm):
+                    print(f"\n⚠️ [Warning] Gradien NaN/Inf terdeteksi pada iterasi {i}! Optimizer step dilewati.")
+                    optimizer.zero_grad(set_to_none=True)
+                else:
+                    optimizer.step()
             else:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                
+                # GradScaler pada FP16 otomatis melompati step jika gradien Inf/NaN saat scaler.step()
                 scaler.step(optimizer)
                 scaler.update()
 
+            # 🌟 [PROTEKSI DORA] Pasang Clamping Tepat Setelah Optimizer Step!
+            for name, param in model.named_parameters():
+                if "lora_magnitude_vector" in name and param.requires_grad:
+                    param.data.clamp_(min=1e-6)
+
             optimizer.zero_grad(set_to_none=True)
 
-        # Akumulasi statistik murni di GPU tanpa sync CPU (.item())
         batch_size = images.size(0)
         running_loss += loss.detach() * batch_size
         _, preds = outputs.max(1)
         correct += preds.eq(labels).sum()
         total += batch_size
 
-        # Update tqdm setiap 10 iterasi untuk memangkas overhead I/O CPU
         if i % 10 == 0:
             pbar.set_postfix({
                 "loss": f"{(running_loss / total).item():.4f}",
                 "acc": f"{(correct.float() / total).item():.4f}"
             })
 
-    # Konversi statistik GPU ke CPU hanya 1x di akhir epoch
     epoch_loss = (running_loss / total).item()
     epoch_acc = (correct.float() / total).item()
     return epoch_loss, epoch_acc
@@ -283,11 +291,14 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     conv_params = []
+    dora_magnitude_params = []
     peft_params = []
 
     for name, param in model.named_parameters():
         if param.requires_grad:
-            if any(k in name for k in CONV_TARGET_MODULES):
+            if "lora_magnitude_vector" in name:
+                dora_magnitude_params.append(param)
+            elif any(k in name for k in CONV_TARGET_MODULES):
                 conv_params.append(param)
             else:
                 peft_params.append(param)
@@ -302,17 +313,23 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             'params': peft_params,
             'lr': CONFIG["effective_lr"],        # Full LR (100% / 1.0x) untuk Adaptor PEFT & Classifier
             'weight_decay': CONFIG["weight_decay"]
+        },
+        {
+            'params': dora_magnitude_params,
+            'lr': CONFIG["effective_lr"],        # Full LR untuk Magnitude DoRA
+            'weight_decay': 0.0                  # 🌟 0.0 Weight Decay (Proteksi dari loss=nan)
         }
     ]
 
     optimizer = optim.AdamW(
         optimizer_grouped_parameters,
-        eps=1e-8
+        eps=1e-6
     )
 
     print(f"⚙️ [Optimizer Grouping Aktif]")
     print(f"   └─ Conv Layers (0.1x LR) : {len(conv_params)} tensor params | LR: {CONFIG['effective_lr'] * 0.1:.6f}")
     print(f"   └─ PEFT/Head   (1.0x LR) : {len(peft_params)} tensor params | LR: {CONFIG['effective_lr']:.6f}")
+    print(f"   └─ DoRA Mag    (WD=0.0)     : {len(dora_magnitude_params)} tensor params | LR: {CONFIG['effective_lr']:.6f}")
 
     scheduler_warmup = LinearLR(
         optimizer, 
@@ -507,8 +524,6 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         eval_m = eval_m.to(device)
 
         eval_m.load_state_dict(torch.load(ckpt_path, map_location=device))
-        eval_m = merge_peft_and_unload(eval_m)
-
         eval_m = eval_m.to(device).to(memory_format=torch.channels_last) # type: ignore
 
         _, _, tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
@@ -687,8 +702,6 @@ def main():
     # 1.2 Memuat Pretrained Weights OrganCMNIST (Otomatis Weight Inflation/Deflation jika channel berbeda)
     model.load_pretrained_weights(CONFIG["pretrained_path"], device=device)
 
-    # 1.3 Injeksi Adaptor PEFT (LoRA, DoRA, ProDiaL, atau Full FT)
-
     active_r = CONFIG["prodial_r_eps"] if CONFIG["peft_method"] == "prodial" else CONFIG["lora_r"]
 
     model = apply_peft(
@@ -698,9 +711,24 @@ def main():
         alpha=CONFIG["lora_alpha"],
         dropout=CONFIG["lora_dropout"],
         r_b=CONFIG["prodial_r_b"],
-        target_modules= CONFIG.get("target_modules", None), # type: ignore
+        target_modules=CONFIG.get("target_modules", None), # type: ignore
     )
     model = model.to(device).to(memory_format=torch.channels_last) # type: ignore
+
+    # 🔍 [DIAGNOSTIC HOOK] Melacak path lengkap layer pemicu NaN
+    # def make_nan_hook(mod_name):
+    #     def debug_nan_hook(module, input, output):
+    #         if isinstance(output, torch.Tensor):
+    #             if torch.isnan(output).any() or torch.isinf(output).any():
+    #                 print(f"🚨 [NaN Detected Output] Module: {mod_name} ({module.__class__.__name__})")
+    #         elif isinstance(output, (tuple, list)):
+    #             for i, out in enumerate(output):
+    #                 if isinstance(out, torch.Tensor) and (torch.isnan(out).any() or torch.isinf(out).any()):
+    #                     print(f"🚨 [NaN Detected Output Tuple {i}] Module: {mod_name} ({module.__class__.__name__})")
+    #     return debug_nan_hook
+
+    # for name, module in model.named_modules():
+    #     module.register_forward_hook(make_nan_hook(name))
 
     if hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
@@ -722,8 +750,7 @@ def main():
     )
 
     # 4. Mode Percabangan: Dry-Run vs Full Training
-
-    run_mock_test(model, train_loader, device, gpu_eval_transform,)
+    run_mock_test(model, train_loader, device, gpu_eval_transform)
 
     if args.dry_run:
         print("💡 Mode --dry_run selesai. Program keluar tanpa melakukan pelatihan.")

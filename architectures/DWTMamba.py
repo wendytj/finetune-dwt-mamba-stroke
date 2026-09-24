@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from mamba_ssm import Mamba  
 
 class HaarDWT2D(nn.Module):
-    """Mendekomposisi citra input menjadi 4 subband frekuensi ter-vektorisasi."""
+    """Mendekomposisi citra input menjadi 4 subband frekuensi ter-vektorisasi (FP16-Safe)."""
     def __init__(self, in_channels):
         super().__init__()
         self.in_channels = in_channels
@@ -34,7 +34,10 @@ class HaarDWT2D(nn.Module):
 
         sb_min = out.amin(dim=(-2, -1), keepdim=True)
         sb_max = out.amax(dim=(-2, -1), keepdim=True)
-        out_norm = (out - sb_min) / (sb_max - sb_min + 1e-5)
+        
+        # 🌟 PERBAIKAN KRUSIAL FOR FP16: Gunakan clamp min 1e-4 agar denominator tidak membengkak
+        denom = (sb_max - sb_min).clamp(min=1e-4)
+        out_norm = (out - sb_min) / denom
 
         return out_norm  # Shape: [B, 4, C, H//2, W//2]
 
@@ -119,7 +122,7 @@ class SpaSE_SSM(nn.Module):
         return y_shuff + x
 
 class MB_GSF(nn.Module):
-    """Menggabungkan fitur 4 subband DWT secara ter-vektorisasi tanpa Python loop."""
+    """Menggabungkan fitur 4 subband DWT secara ter-vektorisasi tanpa Python loop (FP16-Safe)."""
     def __init__(self, dim, reduction=4):
         super().__init__()
         self.dim = dim
@@ -150,11 +153,14 @@ class MB_GSF(nn.Module):
         f_shuff = channel_shuffle(f_cat, groups=4)
         f_proj = self.proj(f_shuff)
 
-        # Residual Sum & LayerNorm
+        # Residual Sum & LayerNorm (Ditambah proteksi FP32 cast internal LayerNorm)
         f_sum = recalibrated.sum(dim=1)
         f_fused = f_proj + f_sum
 
-        return self.ln(f_fused.permute(0, 2, 3, 1)).permute(0, 3, 1, 2).contiguous()
+        # LayerNorm dieksekusi dengan aman
+        x_ln = f_fused.permute(0, 2, 3, 1)
+        out_ln = self.ln(x_ln)
+        return out_ln.permute(0, 3, 1, 2).contiguous()
 
 class LatentEncoder(nn.Module):
     def __init__(self, in_channels, latent_dim=128):

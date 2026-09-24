@@ -18,12 +18,12 @@ from .CoLoRA import apply_colora_to_model, merge_colora_weights, CoLoRAConv2d
 LINEAR_TARGET_MODULES = [
     "in_proj",      # Proyeksi input Mamba (row_mamba & col_mamba)
     "out_proj",     # Proyeksi output Mamba (row_mamba & col_mamba)
-    "x_proj",       # Proyeksi parameter SSM Mamba (row_mamba & col_mamba)
-    "dt_proj",      # Proyeksi delta Mamba
-    "gate_fc.0",  # Linear pertama di MB_GSF
-    "gate_fc.2",  # Linear kedua di MB_GSF
-    "fc.2",       # Linear pertama di SqueezeAndExcitation
-    "fc.4",        # Linear kedua di SqueezeAndExcitation  
+    # "x_proj",       # Proyeksi parameter SSM Mamba (row_mamba & col_mamba)
+    # "dt_proj",      # Proyeksi delta Mamba
+    # "gate_fc.0",  # Linear pertama di MB_GSF
+    # "gate_fc.2",  # Linear kedua di MB_GSF
+    # "fc.2",       # Linear pertama di SqueezeAndExcitation
+    # "fc.4",        # Linear kedua di SqueezeAndExcitation  
     "proj_fused",   # Proyeksi fitur DWT-Mamba global sebelum Classifier
     "proj_latent",  # Proyeksi vektor LatentEncoder sebelum Classifier
     "classifier"    # Layer Linear Classifier utama (3 kelas stroke)
@@ -58,7 +58,14 @@ def apply_lora(model: nn.Module, r: int = 8, alpha: int = 16, dropout: float = 0
 def apply_dora(model: nn.Module, r: int = 8, alpha: int = 16, dropout: float = 0.05, target_modules: list = LINEAR_TARGET_MODULES) -> nn.Module:
     config = LoraConfig(r=r, lora_alpha=alpha, target_modules=target_modules, lora_dropout=dropout, bias="none", use_dora=True)
     peft_model = get_peft_model(model, config)
-    print(f"✅ [DoRA Injected] r={r}, alpha={alpha} pada {target_modules}")
+    
+    # 🌟 Proteksi ganda: Konversi lora_magnitude_vector ke FP32 dan clamping
+    for name, param in peft_model.named_parameters():
+        if "lora_magnitude_vector" in name:
+            param.data = param.data.float()
+            param.data.clamp_(min=1e-6)
+
+    print(f"✅ [DoRA Injected Safely with FP32 Magnitude] r={r}, alpha={alpha} pada {target_modules}")
     return peft_model
 
 def apply_prodial(model: nn.Module, r_eps: int = 8, r_b: int = 16, target_modules: list = LINEAR_TARGET_MODULES) -> nn.Module:
@@ -93,7 +100,12 @@ def apply_peft(
 
     # 3. Track 2: Terapkan Adaptor Linear Pilihan
     raw_targets = LINEAR_TARGET_MODULES if target_modules is None else target_modules
-    linear_targets = [m for m in raw_targets if m != "dt_proj"]
+    
+    skipped = [m for m in raw_targets if m in ["dt_proj", "x_proj"]]
+    linear_targets = [m for m in raw_targets if m not in ["dt_proj", "x_proj"]]
+
+    if skipped:
+        print(f"🛡️ [Safety Notice] Modul {skipped} dilewati secara otomatis dari adaptasi PEFT demi stabilitas Mamba SSM.")
 
     if method == "lora":
         model = apply_lora(model, r=r, alpha=alpha, dropout=dropout, target_modules=linear_targets)
@@ -115,17 +127,17 @@ def apply_peft(
 
 
 def merge_peft_and_unload(model: nn.Module) -> nn.Module:
-    merged_any = False
+    # 🌟 1. Paksa model ke FP32 sebelum merge agar pembagian norma DoRA aman dari underflow
+    if isinstance(model, PeftModel):
+        model = model.float()
+        model = model.merge_and_unload()
+
+    # 2. Unload CoLoRA
     if any(isinstance(m, CoLoRAConv2d) for m in model.modules()):
         model = merge_colora_weights(model)
-        merged_any = True
 
+    # 3. Unload ProDiaL
     if hasattr(model, "is_prodial") or any("ProDiaLLinear" in m.__class__.__name__ for m in model.modules()):
         model = merge_prodial_weights(model)
-        merged_any = True
-
-    if isinstance(model, PeftModel):
-        model = model.merge_and_unload()
-        merged_any = True
 
     return model

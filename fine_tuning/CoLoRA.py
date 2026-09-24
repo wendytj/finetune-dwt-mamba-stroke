@@ -65,7 +65,7 @@ class CoLoRAConv2d(nn.Module):
                 return base_out + colora_out
 
             # use_reentrant=False direkomendasikan untuk PyTorch modern & AMP/autocast
-            return checkpoint(_custom_forward, x, use_reentrant=False)
+            return checkpoint(_custom_forward, x, use_reentrant=False) # type: ignore
         else:
             base_out = self.original_conv(x)
             colora_out = self.pointwise(self.depthwise(x))

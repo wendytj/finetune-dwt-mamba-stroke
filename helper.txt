@@ -108,4 +108,8 @@ tmux new -s train 'python peft-dwt-mamba-vast.py 2>&1 | tee train.log'
 
 tar -czvf lora-801010-1ch-v1.tar.gz lora-801010-1ch-v1/
 
+
+python peft-dwt-mamba-vast.py --batch_size 32 --eval_batch_size 256 --max_epochs 1 --experiment_code sanity-check-for-dora
 python sanity_check.py
+
+tmux new -s train 'python peft-dwt-mamba-vast.py --max_epochs 150 --warmup_epochs 15  --peft_method dora --experiment_code dora-801010-1ch-v1 2>&1 | tee train.log'

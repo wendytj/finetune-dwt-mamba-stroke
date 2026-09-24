@@ -1,0 +1,31 @@
+# 1. Inisialisasi model dasar
+model = DWTMamba(
+    in_channels=CONFIG["in_channels"],
+    num_classes=CONFIG["num_classes"],
+    embed_dim=CONFIG["embed_dim"],
+    depth=CONFIG["depth"],
+    mamba_d_state=CONFIG["mamba_d_state"],
+    mamba_d_conv=CONFIG["mamba_d_conv"],
+    mamba_expand=CONFIG["mamba_expand"],
+    se_reduction=CONFIG["se_reduction"],
+    mb_gsf_reduction=CONFIG["mb_gsf_reduction"],
+    latent_dim=CONFIG["latent_dim"],
+    proj_dim=CONFIG["proj_dim"]
+).to(device)
+
+# 2. Injeksi struktur PEFT yang sama
+model = apply_peft(
+    model,
+    method="dora",
+    r=32,
+    alpha=64,
+    target_modules=["in_proj", "out_proj", "proj_fused", "proj_latent", "classifier"]
+)
+
+# 3. Muat file .pth hasil pelatihan
+model.load_state_dict(torch.load("logs/dora-801010-1ch-v1/best_model_val_mcc.pth", map_location=device))
+
+# 4. Siap inferensi/prediksi!
+model.eval()
+with torch.no_grad():
+    output = model(input_images)
