@@ -108,3 +108,4 @@ tmux new -s train 'python peft-dwt-mamba-vast.py 2>&1 | tee train.log'
 
 tar -czvf lora-801010-1ch-v1.tar.gz lora-801010-1ch-v1/
 
+python sanity_check.py
