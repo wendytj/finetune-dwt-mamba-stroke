@@ -6,8 +6,8 @@ CONFIG = {
     
     "npz_path": "data/turkey_1channel.npz",
     "pretrained_path": "weights/pretrained_weights.pth",
-    "batch_size": 128,
-    "eval_batch_size": 2048,
+    "batch_size": 64,
+    "eval_batch_size": 1024,
     "accumulation_steps": 1,
     "num_workers": 32,
     "img_size": 224,

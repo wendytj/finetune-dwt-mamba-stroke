@@ -123,4 +123,13 @@ fallocate -l 100M dummy.bin
 vastai copy C.52442755:/workspace/finetune-dwt-mamba-stroke/logs/dummydummy/ ./logs-vastai/
 
 mkdir -p logs/dummydummy
+cd logs/dummydummy
 
+tmux new -s train 'python train.py --peft_method dora --experiment_code dora-801010-1ch-v2 2>&1 | tee train.log'
+tmux new -s train 'python train.py --peft_method lora --experiment_code lora-801010-1ch-v1 2>&1 | tee train.log'
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-1ch-v1 2>&1 | tee train.log'
+
+
+vastai ssh-url 52442755
+
+ssh -p 38291 root@182.xxx.xxx.xxx "df -h"
