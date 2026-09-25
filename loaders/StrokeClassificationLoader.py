@@ -8,27 +8,20 @@ from .debugger import unpack_split_info
 class StrokeNPZDataset(Dataset):
     """Dataset class untuk memuat array NPZ CT Scan ke PyTorch Tensor."""
 
-    def __init__(self, images_array, labels_array, target_channels=1):
-        # Konversi ke PyTorch Tensor [N, C, H, W]
+    def __init__(self, images_array, labels_array):
+        # Konversi ke PyTorch Tensor
         images_tensor = torch.from_numpy(images_array)
 
-        # 1. Standardisasi Dimensi ke [N, C, H, W]
+        # Standardisasi Dimensi ke [N, C, H, W] saja (tanpa duplikasi/slicing channel di RAM)
         if images_tensor.ndim == 3:  # [N, H, W] -> [N, 1, H, W]
             images_tensor = images_tensor.unsqueeze(1)
         elif images_tensor.ndim == 4 and images_tensor.shape[-1] in [1, 3]:  # [N, H, W, C] -> [N, C, H, W]
             images_tensor = images_tensor.permute(0, 3, 1, 2)
 
-        # 2. Penyesuaian num_channels jika ada ketidaksesuaian (Misal: Repeat 1ch ke 3ch)
-        curr_channels = images_tensor.shape[1]
-        if curr_channels == 1 and target_channels == 3:
-            images_tensor = images_tensor.repeat(1, 3, 1, 1)
-        elif curr_channels == 3 and target_channels == 1:
-            images_tensor = images_tensor[:, :1, :, :]
-
         self.images = images_tensor
         self.labels = torch.from_numpy(labels_array).long().reshape(-1)
 
-    def __len__(self):
+    def __len__(self): 
         return len(self.images)
 
     def __getitem__(self, idx):
@@ -66,20 +59,20 @@ def get_stroke_dataloaders(
         raise KeyError(f"❌ Key config '{config}' tidak ditemukan dalam file NPZ.")
 
     split_info = unpack_split_info(data[config], fold_idx=fold_idx)
-    train_idx = split_info["train"] # type: ignore
-    val_idx = split_info["val"]  # type: ignore
-    test_idx = split_info["test"]  # type: ignore
+    train_idx = split_info["train"]  # type: ignore
+    val_idx = split_info["val"]      # type: ignore
+    test_idx = split_info["test"]    # type: ignore
 
     # 2. Deteksi Mode: K-Fold vs Holdout
     is_kfold = "kfold" in config.lower() or config.startswith("folds_")
 
-    # 3. Inisialisasi Sub-Dataset
-    train_dataset = StrokeNPZDataset(images[train_idx], labels[train_idx], target_channels=num_channels)
-    val_dataset = StrokeNPZDataset(images[val_idx], labels[val_idx], target_channels=num_channels)
+    # 3. Inisialisasi Sub-Dataset (Bersih dari target_channels)
+    train_dataset = StrokeNPZDataset(images[train_idx], labels[train_idx])
+    val_dataset = StrokeNPZDataset(images[val_idx], labels[val_idx])
     
     test_dataset = None
     if not is_kfold and len(test_idx) > 0:
-        test_dataset = StrokeNPZDataset(images[test_idx], labels[test_idx], target_channels=num_channels)
+        test_dataset = StrokeNPZDataset(images[test_idx], labels[test_idx])
 
     # 4. Parameter Kwargs DataLoader
     use_persistent = num_workers > 0
@@ -106,27 +99,32 @@ def get_stroke_dataloaders(
 
     # 5. Transformasi GPU On-The-Fly (Anatomy-Preserving CT Scan)
     gpu_train_transform = v2.Compose([
-        v2.ToDtype(torch.float32, scale=True), 
-        
+        v2.Lambda(
+            lambda x: x.repeat(1, 3, 1, 1)
+            if (x.ndim == 4 and x.shape[1] == 1 and num_channels == 3)
+            else x
+        ),
+        v2.ToDtype(torch.float32, scale=False), 
         v2.RandomHorizontalFlip(p=0.5),
-        
         v2.RandomAffine(
             degrees=5,  # type: ignore
             translate=(0.03, 0.03), 
             scale=(0.95, 1.05),
-            interpolation=v2.InterpolationMode.BILINEAR,  # 1. Mencegah aliasing tajam pada kontur DWT
+            interpolation=v2.InterpolationMode.BILINEAR,
             fill=0
         ),
-        
-        v2.ColorJitter(brightness=0.1, contrast=0.1),
-        
         v2.RandomApply([
             v2.GaussianBlur(kernel_size=3, sigma=(0.1, 0.8))
         ], p=0.3),
     ])
 
     gpu_eval_transform = v2.Compose([
-        v2.ToDtype(torch.float32, scale=True),
+        v2.Lambda(
+            lambda x: x.repeat(1, 3, 1, 1)
+            if (x.ndim == 4 and x.shape[1] == 1 and num_channels == 3)
+            else x
+        ),
+        v2.ToDtype(torch.float32, scale=False),
     ])
 
     num_classes = len(np.unique(labels))
