@@ -26,20 +26,20 @@ else
     echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
 fi
 
-# if [ ! -f "data/turkey_3channel.npz" ]; then
-#     echo "Downloading dataset Turkey 3-Channel..."
-#     gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
-# else
-#     echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
-# fi
-
-# 2. Download Pretrained Weights
-if [ ! -f "weights/pretrained_weights.pth" ]; then
-    echo "Downloading Pretrained Weights..."
-    gdown 1O_ff_gibel6W0EvC2P9wB3LBsWBB4XoT -O weights/pretrained_weights.pth
+if [ ! -f "data/turkey_3channel.npz" ]; then
+    echo "Downloading dataset Turkey 3-Channel..."
+    gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
 else
-    echo "✅ Pretrained Weights sudah ada, melewati proses unduh."
+    echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
 fi
+
+# # 2. Download Pretrained Weights
+# if [ ! -f "weights/pretrained_weights.pth" ]; then
+#     echo "Downloading Pretrained Weights..."
+#     gdown 1O_ff_gibel6W0EvC2P9wB3LBsWBB4XoT -O weights/pretrained_weights.pth
+# else
+#     echo "✅ Pretrained Weights sudah ada, melewati proses unduh."
+# fi
 
 echo "================================================="
 echo "🎉 Setup Selesai! Environment dan Data Siap."

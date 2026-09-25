@@ -1,10 +1,10 @@
 import argparse
 
 CONFIG = {
-    "experiment_code": "dora-801010-1ch-v1",   
+    "experiment_code": "dora-801010-3ch-v1",   
     "seed": 42,
     
-    "npz_path": "data/turkey_1channel.npz",
+    "npz_path": "data/turkey_3channel.npz",
     "pretrained_path": "weights/pretrained_weights.pth",
     "batch_size": 64,
     "eval_batch_size": 1024,
