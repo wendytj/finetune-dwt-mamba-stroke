@@ -35,7 +35,7 @@ def get_stroke_dataloaders(
     num_channels=1,
     batch_size=16,
     eval_batch_size=None,
-    num_workers=4,
+    num_workers=2,
 ):
     """
     Fungsi pembuat DataLoader untuk Holdout dan K-Fold Cross Validation.
@@ -82,7 +82,7 @@ def get_stroke_dataloaders(
         "persistent_workers": use_persistent,
     }
     if use_persistent:
-        base_kwargs["prefetch_factor"] = 2
+        base_kwargs["prefetch_factor"] = 1
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, **base_kwargs

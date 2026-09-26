@@ -86,7 +86,6 @@ def evaluate(model, dataloader, criterion, device, gpu_transform, desc="Validati
             labels = labels.to(device, non_blocking=True).view(-1).long()
 
             images = gpu_transform(images)
-            images = images.to(memory_format=torch.channels_last)
 
             with torch.autocast(device_type="cuda", dtype=amp_dtype):
                 outputs = model(images)
