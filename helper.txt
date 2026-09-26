@@ -147,3 +147,9 @@ tar -czvf dora-801010-3ch-v1.tar.gz dora-801010-3ch-v1/
 tmux new -s train 'python train.py --peft_method dora --experiment_code dora-801010-3ch-v1 --npz_path data/turkey_3channel.npz 2>&1 | tee train.log'
 
 tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-v1 --npz_path data/turkey_3channel.npz 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-focal-v1 --npz_path data/turkey_3channel.npz --loss_type focal --use_class_weight 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-asl-v1 --npz_path data/turkey_3channel.npz --loss_type asl --no-use_class_weight 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-fece-v1 --npz_path data/turkey_3channel.npz --loss_type fece --no-use_class_weight 2>&1 | tee train.log'

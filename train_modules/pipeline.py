@@ -55,9 +55,16 @@ def evaluate_best_checkpoints(
 
     def eval_single_checkpoint(ckpt_path, desc_tag):
         if not os.path.exists(ckpt_path):
+            print(f"⚠️ Checkpoint tidak ditemukan: {ckpt_path}")
             return None, None, None
+            
         print(f"  --> Evaluasi Model '{desc_tag}'...")
         
+        # 1. Alokasi ulang memori GPU & bersihkan cache sebelum inisialisasi
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        # 2. Inisialisasi Model TANPA channels_last (mencegah crash Triton/Mamba kernel)
         eval_m = DWTMamba(
             in_channels=CONFIG["in_channels"], num_classes=CONFIG["num_classes"],
             embed_dim=CONFIG["embed_dim"], depth=CONFIG["depth"],
@@ -65,36 +72,45 @@ def evaluate_best_checkpoints(
             mamba_expand=CONFIG["mamba_expand"], se_reduction=CONFIG["se_reduction"],
             mb_gsf_reduction=CONFIG["mb_gsf_reduction"], latent_dim=CONFIG["latent_dim"],
             proj_dim=CONFIG["proj_dim"]
-        ).to(device).to(memory_format=torch.channels_last) # type: ignore
+        ).to(device)
 
         active_r = CONFIG["prodial_r_eps"] if CONFIG["peft_method"] == "prodial" else CONFIG["lora_r"]
 
+        # 3. Suntikkan PEFT
         eval_m = apply_peft(
             eval_m, method=CONFIG["peft_method"],
-            target_modules=CONFIG.get("target_modules", None), # type: ignore
+            target_modules=CONFIG.get("target_modules", None),
             r=active_r, alpha=CONFIG["lora_alpha"],
             dropout=CONFIG["lora_dropout"], r_b=CONFIG["prodial_r_b"]
         ).to(device)
 
-        eval_m.load_state_dict(torch.load(ckpt_path, map_location=device))
-        eval_m = eval_m.to(device).to(memory_format=torch.channels_last) # type: ignore
+        # 4. Load weights & Kunci ke Mode Evaluasi Eksplisit (.eval())
+        state_dict = torch.load(ckpt_path, map_location=device)
+        eval_m.load_state_dict(state_dict)
+        eval_m.eval() # WAJIB: Mematikan Dropout/BatchNorm & Graph Autograd
 
-        _, _, tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
-        _, _, va_eval = evaluate(eval_m, val_loader, criterion, device, gpu_eval_transform, desc=f"Eval Val ({desc_tag})")
+        # 5. Jalankan Evaluasi dalam blok torch.no_grad()
+        with torch.no_grad():
+            _, _, tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
+            _, _, va_eval = evaluate(eval_m, val_loader, criterion, device, gpu_eval_transform, desc=f"Eval Val ({desc_tag})")
+            
+            te_eval = None
+            if test_loader is not None:
+                _, _, te_eval = evaluate(eval_m, test_loader, criterion, device, gpu_eval_transform, desc=f"Testing ({desc_tag})")
         
-        te_eval = None
-        if test_loader is not None:
-            _, _, te_eval = evaluate(eval_m, test_loader, criterion, device, gpu_eval_transform, desc=f"Testing ({desc_tag})")
-        
-        del eval_m
+        # 6. Bersihkan model dari VRAM secara bersih
+        del eval_m, state_dict
         gc.collect()
         torch.cuda.empty_cache()
 
         return tr_eval, va_eval, te_eval
 
     same_best_epoch = (best_mcc_epoch == best_loss_epoch)
+    
+    # Evaluasi Model 1 (Best MCC)
     tr_mcc, va_mcc, te_mcc = eval_single_checkpoint(path_best_val_mcc, f"Best MCC (Ep {best_mcc_epoch})")
     
+    # Evaluasi Model 2 (Best Loss)
     if same_best_epoch:
         print("💡 Epoch terbaik MCC dan Loss sama! Menggunakan hasil evaluasi yang sama.")
         tr_loss, va_loss, te_loss = tr_mcc, va_mcc, te_mcc
