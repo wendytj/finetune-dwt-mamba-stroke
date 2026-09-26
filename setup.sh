@@ -19,12 +19,12 @@ echo "📂 [4/4] Preparing Dataset & Pretrained Weights..."
 mkdir -p data
 mkdir -p weights
 
-if [ ! -f "data/turkey_1channel.npz" ]; then
-    echo "Downloading dataset Turkey 1-Channel..."
-    gdown 1HuSEUKz7PEFRAK75Q8RfcPUDiRr8Th_V -O data/turkey_1channel.npz
-else
-    echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
-fi
+# if [ ! -f "data/turkey_1channel.npz" ]; then
+#     echo "Downloading dataset Turkey 1-Channel..."
+#     gdown 1HuSEUKz7PEFRAK75Q8RfcPUDiRr8Th_V -O data/turkey_1channel.npz
+# else
+#     echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
+# fi
 
 if [ ! -f "data/turkey_3channel.npz" ]; then
     echo "Downloading dataset Turkey 3-Channel..."
@@ -33,13 +33,13 @@ else
     echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
 fi
 
-# # 2. Download Pretrained Weights
-# if [ ! -f "weights/pretrained_weights.pth" ]; then
-#     echo "Downloading Pretrained Weights..."
-#     gdown 1O_ff_gibel6W0EvC2P9wB3LBsWBB4XoT -O weights/pretrained_weights.pth
-# else
-#     echo "✅ Pretrained Weights sudah ada, melewati proses unduh."
-# fi
+# 2. Download Pretrained Weights
+if [ ! -f "weights/pretrained_weights.pth" ]; then
+    echo "Downloading Pretrained Weights..."
+    gdown 1O_ff_gibel6W0EvC2P9wB3LBsWBB4XoT -O weights/pretrained_weights.pth
+else
+    echo "✅ Pretrained Weights sudah ada, melewati proses unduh."
+fi
 
 echo "================================================="
 echo "🎉 Setup Selesai! Environment dan Data Siap."

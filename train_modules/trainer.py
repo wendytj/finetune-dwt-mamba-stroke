@@ -7,7 +7,7 @@ def train_one_epoch(
     dora_magnitude_params, accumulation_steps=1
 ):
     model.train()
-    running_loss = torch.tensor(0.0, device=device)
+    running_loss = torch.tensor(0.0, device=device) # type: ignore
     correct = torch.tensor(0, device=device)
     total = 0
 

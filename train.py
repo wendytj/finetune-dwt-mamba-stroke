@@ -31,6 +31,7 @@ def main():
     CONFIG["num_workers"] = args.num_workers
     CONFIG["max_epochs"] = args.max_epochs
     CONFIG["learning_rate"] = args.learning_rate
+    CONFIG["lr_conv_ratio"] = args.lr_conv_ratio
     CONFIG["weight_decay"] = args.weight_decay
     CONFIG["experiment_code"] = args.experiment_code
     CONFIG["warmup_epochs"] = args.warmup_epochs
@@ -45,6 +46,14 @@ def main():
     CONFIG["prodial_r_eps"] = args.prodial_r_eps
     CONFIG["prodial_r_b"] = args.prodial_r_b
     CONFIG["in_channels"] = args.in_channels
+
+    CONFIG["loss_type"] = args.loss_type
+    CONFIG["use_class_weights"] = args.use_class_weights
+    CONFIG["focal_gamma"] = args.focal_gamma
+    CONFIG["asl_gamma_pos"] = args.asl_gamma_pos
+    CONFIG["asl_gamma_neg"] = args.asl_gamma_neg
+    CONFIG["asl_margin"] = args.asl_margin
+    CONFIG["fece_gamma"] = args.fece_gamma
 
     if args.target_modules:
         CONFIG["target_modules"] = args.target_modules

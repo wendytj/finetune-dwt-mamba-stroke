@@ -6,29 +6,11 @@ from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 from train_modules.configs import CONFIG
 from train_modules.utils import safe_atomic_save
 from train_modules.trainer import train_one_epoch, evaluate
+from train_modules.loss import compute_class_weights, build_loss_criterion
 from architectures.DWTMamba import DWTMamba
 from fine_tuning.peft_wrapper import apply_peft, CONV_TARGET_MODULES
 
-def compute_class_weights(train_loader, num_classes, device):
-    if hasattr(train_loader.dataset, 'labels'):
-        train_labels = torch.tensor(train_loader.dataset.labels)
-    elif hasattr(train_loader.dataset, 'targets'):
-        train_labels = torch.tensor(train_loader.dataset.targets)
-    else:
-        train_labels = torch.tensor([label for _, label in train_loader.dataset])
-
-    train_labels = train_labels.view(-1).long()
-    class_counts = torch.bincount(train_labels)
-    total_samples = len(train_labels)
-    
-    raw_weights = torch.sqrt(total_samples / (num_classes * class_counts.float()))
-    class_weights = torch.clamp(raw_weights, min=0.5, max=3.0).to(device)
-    
-    print(f"⚖️ [Class Imbalance] Distribusi Label Train: {class_counts.tolist()}")
-    print(f"⚖️ [Class Weights]  : {class_weights.tolist()}")
-    return class_weights, class_counts
-
-def build_optimizer_and_scheduler(model, effective_lr, weight_decay, warmup_epochs, max_epochs):
+def build_optimizer_and_scheduler(model, effective_lr, weight_decay, warmup_epochs, max_epochs, lr_conv_ratio=0.1):
     conv_params = []
     dora_magnitude_params = []
     peft_params = []
@@ -42,8 +24,10 @@ def build_optimizer_and_scheduler(model, effective_lr, weight_decay, warmup_epoc
             else:
                 peft_params.append(param)
 
+    conv_lr = effective_lr * lr_conv_ratio
+
     optimizer_grouped_parameters = [
-        {'params': conv_params, 'lr': effective_lr * 0.1, 'weight_decay': weight_decay},
+        {'params': conv_params, 'lr': conv_lr, 'weight_decay': weight_decay},
         {'params': peft_params, 'lr': effective_lr, 'weight_decay': weight_decay},
         {'params': dora_magnitude_params, 'lr': effective_lr, 'weight_decay': 0.0} # Proteksi DoRA WD=0
     ]
@@ -166,13 +150,12 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
     gpu_train_transform, gpu_eval_transform = transforms
     amp_dtype, use_bf16, scaler = amp_params
 
-    # 1. Setup Loss Kriteria
     class_weights, class_counts = compute_class_weights(train_loader, CONFIG["num_classes"], device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = build_loss_criterion(CONFIG, class_weights=class_weights)
 
     # 2. Setup Optimizer & Scheduler
     optimizer, scheduler, dora_magnitude_params = build_optimizer_and_scheduler(
-        model, CONFIG["effective_lr"], CONFIG["weight_decay"], CONFIG["warmup_epochs"], CONFIG["max_epochs"]
+        model, CONFIG["effective_lr"], CONFIG["weight_decay"], CONFIG["warmup_epochs"], CONFIG["max_epochs"], CONFIG["lr_conv_ratio"]
     )
 
     # 3. Setup Checkpoint Paths & State Variables
