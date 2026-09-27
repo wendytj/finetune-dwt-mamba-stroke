@@ -35,7 +35,7 @@ def build_optimizer_and_scheduler(model, effective_lr, weight_decay, warmup_epoc
     optimizer = optim.AdamW(optimizer_grouped_parameters, eps=1e-6)
 
     print(f"⚙️ [Optimizer Grouping Aktif]")
-    print(f"   └─ Conv Layers (0.1x LR) : {len(conv_params)} tensor params | LR: {effective_lr * 0.1:.6f}")
+    print(f"   └─ Conv Layers ({lr_conv_ratio}x LR) : {len(conv_params)} tensor params | LR: {effective_lr * lr_conv_ratio:.6f}")
     print(f"   └─ PEFT/Head   (1.0x LR) : {len(peft_params)} tensor params | LR: {effective_lr:.6f}")
     print(f"   └─ DoRA Mag    (WD=0.0)  : {len(dora_magnitude_params)} tensor params | LR: {effective_lr:.6f}")
 
