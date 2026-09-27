@@ -34,17 +34,17 @@ mkdir -p weights
 # fi
 
 if [ ! -f "data/turkey_1channel_fixpad.npz" ]; then
-    echo "Downloading dataset Turkey 1-Channel..."
+    echo "Downloading dataset Turkey 1-Channel FixPad..."
     gdown 15ZsEQfC6LeDV-XphkP3j9_WVXdvyxblc -O data/turkey_1channel_fixpad.npz
 else
     echo "✅ Dataset Turkey 1-Channel FixPad sudah ada, melewati proses unduh."
 fi
 
 if [ ! -f "data/turkey_3channel_noclahe.npz" ]; then
-    echo "Downloading dataset Turkey 3-Channel..."
-    gdown 1tJR1wU1aeVBCP6AJKvjV9vK_DtEG5CTG -O data/turkey_3channel.npz
+    echo "Downloading dataset Turkey 3-Channel No CLAHE..."
+    gdown 1tJR1wU1aeVBCP6AJKvjV9vK_DtEG5CTG -O data/turkey_3channel_noclahe.npz
 else
-    echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
+    echo "✅ Dataset Turkey 3-Channel No CLAHE sudah ada, melewati proses unduh."
 fi
 
 # 2. Download Pretrained Weights
