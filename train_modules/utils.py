@@ -27,6 +27,47 @@ def sanitize_peft_hparams(config: dict) -> dict:
 
     return clean_cfg
 
+def sanitize_loss_hparams(config: dict) -> dict:
+    clean_cfg = config.copy()
+    loss_type = str(clean_cfg.get("loss_type", "ce")).lower()
+
+    # Daftar seluruh hyperparameter spesifik loss
+    all_loss_keys = [
+        "focal_gamma",
+        "asl_gamma_pos",
+        "asl_gamma_neg",
+        "asl_margin",
+        "fece_gamma",
+    ]
+
+    if loss_type in ["ce", "cross_entropy"]:
+        # CE tidak membutuhkan hyperparameter tambahan
+        for key in all_loss_keys:
+            clean_cfg.pop(key, None)
+
+    elif loss_type in ["focal", "focal_loss"]:
+        # Hanya simpan focal_gamma
+        for key in ["asl_gamma_pos", "asl_gamma_neg", "asl_margin", "fece_gamma"]:
+            clean_cfg.pop(key, None)
+
+    elif loss_type in ["asl", "asymmetric"]:
+        # Hanya simpan asl_*
+        for key in ["focal_gamma", "fece_gamma"]:
+            clean_cfg.pop(key, None)
+
+    elif loss_type in ["fece", "f_ece", "focal_ece"]:
+        # Hanya simpan fece_gamma
+        for key in ["focal_gamma", "asl_gamma_pos", "asl_gamma_neg", "asl_margin"]:
+            clean_cfg.pop(key, None)
+
+    return clean_cfg
+
+def sanitize_all_hparams(config: dict) -> dict:
+    """Master function untuk membersihkan hparams PEFT dan Loss secara sekaligus."""
+    clean_cfg = sanitize_peft_hparams(config)
+    clean_cfg = sanitize_loss_hparams(clean_cfg)
+    return clean_cfg
+
 def run_mock_test(model, train_loader, device, gpu_transform):
     print("\n🔍 Memulai Mock Test (Dry-Run 1 Batch)...")
     model.eval()

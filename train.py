@@ -19,7 +19,7 @@ from loggers.experiment_logger import ExperimentLogger
 
 # Import modul internal kita
 from train_modules.configs import CONFIG, parse_args
-from train_modules.utils import sanitize_peft_hparams, run_mock_test
+from train_modules.utils import sanitize_all_hparams, run_mock_test
 from train_modules.pipeline import run_training_pipeline
 
 def main():
@@ -144,7 +144,7 @@ def main():
     total_p = sum(p.numel() for p in model.parameters())
     print(f"📊 [PEFT Param Summary] Trainable: {trainable_p:,} / {total_p:,} ({100 * trainable_p / total_p:.2f}%)")
 
-    clean_hparams = sanitize_peft_hparams(CONFIG)
+    clean_hparams = sanitize_all_hparams(CONFIG)
     logger = ExperimentLogger(
         save_dir=f"./logs/{CONFIG['experiment_code']}",
         class_names=class_names,
