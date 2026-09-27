@@ -46,3 +46,5 @@ MDs/
 logs-vastai/
 
 credentials.json
+
+inference/

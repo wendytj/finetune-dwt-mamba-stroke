@@ -26,9 +26,23 @@ mkdir -p weights
 #     echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
 # fi
 
-if [ ! -f "data/turkey_3channel.npz" ]; then
+# if [ ! -f "data/turkey_3channel.npz" ]; then
+#     echo "Downloading dataset Turkey 3-Channel..."
+#     gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
+# else
+#     echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
+# fi
+
+if [ ! -f "data/turkey_1channel_fixpad.npz" ]; then
+    echo "Downloading dataset Turkey 1-Channel..."
+    gdown 15ZsEQfC6LeDV-XphkP3j9_WVXdvyxblc -O data/turkey_1channel_fixpad.npz
+else
+    echo "✅ Dataset Turkey 1-Channel FixPad sudah ada, melewati proses unduh."
+fi
+
+if [ ! -f "data/turkey_3channel_noclahe.npz" ]; then
     echo "Downloading dataset Turkey 3-Channel..."
-    gdown 1M4W0PFOA7ICC5RqOqAs8EZ9WM0RlFLAU -O data/turkey_3channel.npz
+    gdown 1tJR1wU1aeVBCP6AJKvjV9vK_DtEG5CTG -O data/turkey_3channel.npz
 else
     echo "✅ Dataset Turkey 3-Channel sudah ada, melewati proses unduh."
 fi
@@ -44,3 +58,7 @@ fi
 echo "================================================="
 echo "🎉 Setup Selesai! Environment dan Data Siap."
 echo "================================================="
+
+
+# gdown 1tJR1wU1aeVBCP6AJKvjV9vK_DtEG5CTG -O data/turkey_3channel_noclahe.npz
+# gdown 15ZsEQfC6LeDV-XphkP3j9_WVXdvyxblc -O data/turkey_1channel_fixpad.npz

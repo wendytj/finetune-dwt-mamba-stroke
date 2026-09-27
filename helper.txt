@@ -142,7 +142,7 @@ lora-801010-1ch-v1
 
 ls -lh data/turkey_3channel.npz
 
-tar -czvf dora-801010-3ch-v1.tar.gz dora-801010-3ch-v1/
+tar -czvf prodial-801010-3ch-focal-v1.tar.gz prodial-801010-3ch-focal-v1/
 
 tmux new -s train 'python train.py --peft_method dora --experiment_code dora-801010-3ch-v1 --npz_path data/turkey_3channel.npz 2>&1 | tee train.log'
 
@@ -155,3 +155,8 @@ tmux new -s train 'python train.py --peft_method prodial --experiment_code prodi
 tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-fece-v1 --npz_path data/turkey_3channel.npz --loss_type fece --no-use_class_weight 2>&1 | tee train.log'
 
 watch -n 1 "free -h && echo '' && df -h /dev/shm"
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-1ch-focal-v1 --npz_path data/turkey_1channel.npz --loss_type focal --use_class_weights --eval_batch_size 1024 -num_workers 16 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-ce-noclahe --npz_path data/turkey_3channel_noclahe.npz --loss_type ce --use_class_weight --eval_batch_size 512 --num_workers 32 --npz_path data/turkey_3channel_noclahe.npz 2>&1 | tee train.log'
