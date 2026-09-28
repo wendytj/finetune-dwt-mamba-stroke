@@ -133,7 +133,7 @@ def get_stroke_dataloaders(
             train_loader,
             val_loader,
             num_classes,
-            gpu_train_transform_trial2,
+            gpu_train_transform_trial3,
             gpu_eval_transform,
         )
     else:
@@ -142,7 +142,7 @@ def get_stroke_dataloaders(
             val_loader,
             test_loader,
             num_classes,
-            gpu_train_transform_trial2,
+            gpu_train_transform_trial3,
             gpu_eval_transform,
         )
 
