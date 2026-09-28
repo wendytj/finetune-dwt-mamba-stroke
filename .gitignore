@@ -52,3 +52,5 @@ inference/
 helper.txt
 
 test-set-*/
+
+exp_augmentasi.py
