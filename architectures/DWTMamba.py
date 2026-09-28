@@ -196,6 +196,7 @@ class DWTMamba(nn.Module):
         proj_dim=256
     ):
         super().__init__()
+        self.in_channels = in_channels
         self.dwt = HaarDWT2D(in_channels)
 
         self.pe_branches = nn.ModuleList([

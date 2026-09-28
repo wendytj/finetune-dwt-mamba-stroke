@@ -12,6 +12,10 @@ pip install jupyterlab
 
 jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
 
+docker system df 
+
+docker ps -a
+
 docker commit 0c844a50eb78 mamba-ready-for-myself:v1 <- ini buat simpan (idnya sesuai docker yang berjalan)
 
 docker save -o mamba_ready_for_myself_v1.tar mamba-ready-for-myself:v1 <- ini buat backup
@@ -171,3 +175,9 @@ tmux new -s train 'python train.py --peft_method prodial --experiment_code prodi
 tar -czvf prodial-801010-v2.tar.gz prodial-801010-1ch-v2/
 
 tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-3ch-focal-ncw --npz_path data/turkey_3channel.npz --loss_type focal --no-use_class_weight 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-1ch-focal-cw --npz_path data/turkey_1channel.npz --loss_type focal --no-use_class_weight 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-1ch-asl --npz_path data/turkey_1channel.npz --loss_type asl --no-use_class_weight 2>&1 | tee train.log'
+
