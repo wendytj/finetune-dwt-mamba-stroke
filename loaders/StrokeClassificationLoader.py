@@ -106,7 +106,6 @@ def get_stroke_dataloaders(
             else x
         ),
         v2.ToDtype(torch.float32, scale=False), 
-        v2.RandomHorizontalFlip(p=0.0),  # Dimatikan
         v2.RandomAffine(
             degrees=5,  # type: ignore
             translate=(0.03, 0.03), 

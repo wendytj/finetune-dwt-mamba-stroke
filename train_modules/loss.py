@@ -222,32 +222,58 @@ class FECELoss(nn.Module):
             return loss.sum()
         return loss
     
-def build_loss_criterion(config: dict, class_weights: torch.Tensor = None) -> nn.Module: # type: ignore
+def build_loss_criterion(
+    config: dict, class_weights: torch.Tensor = None
+) -> nn.Module:  # type: ignore
     """Factory Function untuk membangun kriteria Loss Function berdasarkan CONFIG."""
     loss_type = config.get("loss_type", "ce").lower()
-    use_weights = config.get("use_class_weights", True)
+    use_weights = (
+        config.get("use_class_weights", True) and class_weights is not None
+    )
     weights = class_weights if use_weights else None
 
+    # Format teks log pembobotan agar menampilkan daftar angka bobotnya
+    if use_weights:
+        cw_list = (
+            class_weights.cpu().tolist()
+            if hasattr(class_weights, "cpu")
+            else list(class_weights)
+        )
+        cw_formatted = [round(float(w), 4) for w in cw_list]
+        weight_str = f"Weighted=True | Weights: {cw_formatted}"
+    else:
+        weight_str = "Weighted=False"
+
     if loss_type in ["ce", "cross_entropy"]:
-        print(f"🎯 [Loss Criterion] Active: CrossEntropyLoss (Weighted={use_weights})")
+        print(f"🎯 [Loss Criterion] Active: CrossEntropyLoss ({weight_str})")
         return nn.CrossEntropyLoss(weight=weights)
 
     elif loss_type in ["focal", "focal_loss"]:
         gamma = config.get("focal_gamma", 2.0)
-        print(f"🎯 [Loss Criterion] Active: FocalLoss (gamma={gamma}, Weighted={use_weights})")
-        return FocalLoss(gamma=gamma, weight=weights) # type: ignore
+        print(
+            f"🎯 [Loss Criterion] Active: FocalLoss (gamma={gamma}, {weight_str})"
+        )
+        return FocalLoss(gamma=gamma, weight=weights)  # type: ignore
 
     elif loss_type in ["asl", "asymmetric"]:
         g_pos = config.get("asl_gamma_pos", 1.0)
         g_neg = config.get("asl_gamma_neg", 4.0)
         margin = config.get("asl_margin", 0.05)
-        print(f"🎯 [Loss Criterion] Active: AsymmetricLoss (g_pos={g_pos}, g_neg={g_neg}, margin={margin})")
-        return AsymmetricLoss(gamma_pos=g_pos, gamma_neg=g_neg, margin=margin, weight=weights) # type: ignore
+        print(
+            f"🎯 [Loss Criterion] Active: AsymmetricLoss (g_pos={g_pos}, g_neg={g_neg}, margin={margin}, {weight_str})"
+        )
+        return AsymmetricLoss(
+            gamma_pos=g_pos, gamma_neg=g_neg, margin=margin, weight=weights
+        )  # type: ignore
 
     elif loss_type in ["fece", "f_ece", "focal_ece"]:
         gamma = config.get("fece_gamma", 2.0)
-        print(f"🎯 [Loss Criterion] Active: F-ECE Loss (gamma={gamma}, Weighted={use_weights})")
-        return FECELoss(gamma=gamma, weight=weights) # type: ignore
+        print(
+            f"🎯 [Loss Criterion] Active: F-ECE Loss (gamma={gamma}, {weight_str})"
+        )
+        return FECELoss(gamma=gamma, weight=weights)  # type: ignore
 
     else:
-        raise ValueError(f"🚨 Invalid loss_type: '{loss_type}'. Pilih opsi: ['ce', 'focal', 'asl', 'fece'].")
+        raise ValueError(
+            f"🚨 Invalid loss_type: '{loss_type}'. Pilih opsi: ['ce', 'focal', 'asl', 'fece']."
+        )
