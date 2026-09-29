@@ -25,36 +25,10 @@ from train_modules.pipeline import run_training_pipeline
 def main():
     args = parse_args()
 
-    # Sync argumen CLI ke CONFIG
-    CONFIG["batch_size"] = args.batch_size
-    CONFIG["accumulation_steps"] = args.accumulation_steps
-    CONFIG["num_workers"] = args.num_workers
-    CONFIG["max_epochs"] = args.max_epochs
-    CONFIG["learning_rate"] = args.learning_rate
-    CONFIG["lr_conv_ratio"] = args.lr_conv_ratio
-    CONFIG["weight_decay"] = args.weight_decay
-    CONFIG["experiment_code"] = args.experiment_code
-    CONFIG["warmup_epochs"] = args.warmup_epochs
-    CONFIG["eval_batch_size"] = args.eval_batch_size
-
-    CONFIG["npz_path"] = args.npz_path
-    CONFIG["pretrained_path"] = args.pretrained_path
-    CONFIG["peft_method"] = args.peft_method
-    CONFIG["lora_r"] = args.lora_r
-    CONFIG["lora_alpha"] = args.lora_alpha
-    CONFIG["lora_dropout"] = args.lora_dropout
-    CONFIG["prodial_r_eps"] = args.prodial_r_eps
-    CONFIG["prodial_r_b"] = args.prodial_r_b
-    CONFIG["in_channels"] = args.in_channels
-
-    CONFIG["loss_type"] = args.loss_type
-    CONFIG["use_class_weights"] = args.use_class_weights
-    CONFIG["focal_gamma"] = args.focal_gamma
-    CONFIG["asl_gamma_pos"] = args.asl_gamma_pos
-    CONFIG["asl_gamma_neg"] = args.asl_gamma_neg
-    CONFIG["asl_margin"] = args.asl_margin
-    CONFIG["fece_gamma"] = args.fece_gamma
-
+    for key, value in vars(args).items():
+            if value is not None:
+                CONFIG[key] = value
+                
     if args.target_modules:
         CONFIG["target_modules"] = args.target_modules
 

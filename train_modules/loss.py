@@ -247,7 +247,7 @@ def build_loss_criterion(
     if loss_type in ["ce", "cross_entropy"]:
         print(f"🎯 [Loss Criterion] Active: CrossEntropyLoss ({weight_str})")
         return nn.CrossEntropyLoss(weight=weights)
-
+        
     elif loss_type in ["focal", "focal_loss"]:
         gamma = config.get("focal_gamma", 2.0)
         print(
