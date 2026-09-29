@@ -44,6 +44,10 @@ CONFIG = {
     # Konfigurasi Loss Function (Dinamis dari loss.py)
     "loss_type": "ce",           # Opsi: 'ce', 'focal', 'asl', 'fece'
     "use_class_weights": True,   # Multiplexer pembobotan kelas statis
+    "weight_mode": "sqrt",  # Choices: 's-b', 'd-b-mcc', 'sqrt', 'linear'
+    "weight_beta": 0.999,  # Parameter Class-Balanced (Cui et al., 2019)
+    "weight_delta": 0.5,  # Laju Adaptasi Feedback MCC (Chandraprabha & Maya, 2026)
+
     "focal_gamma": 2.0,          # Hyperparameter Focal Loss (Lin et al., 2017)
     "asl_gamma_pos": 1.0,        # Hyperparameter ASL Positif (Ridnik et al., 2021)
     "asl_gamma_neg": 4.0,        # Hyperparameter ASL Negatif
@@ -90,6 +94,25 @@ def parse_args():
 
     parser.add_argument("--loss_type", type=str, default=CONFIG["loss_type"], choices=["ce", "focal", "asl", "fece"], help="Pilihan fungsi loss")
     parser.add_argument("--use_class_weights", action=argparse.BooleanOptionalAction, default=CONFIG["use_class_weights"], help="Gunakan pembobotan kelas statis")
+    parser.add_argument(
+        "--weight_mode",
+        type=str,
+        default=CONFIG["weight_mode"],
+        choices=["s-b", "d-b-mcc", "sqrt", "linear"],
+        help="Skema pembobotan kelas",
+    )
+    parser.add_argument(
+        "--weight_beta",
+        type=float,
+        default=CONFIG["weight_beta"],
+        help="Beta parameter untuk Class Balanced Loss",
+    )
+    parser.add_argument(
+        "--weight_delta",
+        type=float,
+        default=CONFIG["weight_delta"],
+        help="Delta adaptation rate untuk Dynamic MCC Weighting",
+    )
     parser.add_argument("--focal_gamma", type=float, default=CONFIG["focal_gamma"], help="Gamma parameter untuk Focal Loss")
     parser.add_argument("--asl_gamma_pos", type=float, default=CONFIG["asl_gamma_pos"], help="Gamma positif untuk Asymmetric Loss")
     parser.add_argument("--asl_gamma_neg", type=float, default=CONFIG["asl_gamma_neg"], help="Gamma negatif untuk Asymmetric Loss")

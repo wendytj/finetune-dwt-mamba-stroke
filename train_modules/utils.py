@@ -8,22 +8,33 @@ def safe_atomic_save(obj, path):
     os.replace(tmp_path, path)
 
 def sanitize_peft_hparams(config: dict) -> dict:
+    """Membersihkan parameter PEFT yang tidak relevan agar JSON log tetap rapi."""
     clean_cfg = config.copy()
     method = str(clean_cfg.get("peft_method", "full")).lower()
 
     if method in ["full", "none"]:
         clean_cfg["peft_method"] = "full"
-        for key in ["lora_r", "lora_alpha", "lora_dropout", "prodial_r_eps", "prodial_r_b"]:
+        # 🌟 Hapus seluruh parameter spesifik PEFT (termasuk target_modules)
+        for key in [
+            "lora_r",
+            "lora_alpha",
+            "lora_dropout",
+            "prodial_r_eps",
+            "prodial_r_b",
+            "target_modules",
+            "lr_conv_ratio",
+        ]:
             clean_cfg.pop(key, None)
 
     elif method in ["lora", "dora"]:
+        # Hapus parameter spesifik ProDiAL
         clean_cfg.pop("prodial_r_eps", None)
         clean_cfg.pop("prodial_r_b", None)
 
     elif method == "prodial":
+        # Hapus parameter spesifik LoRA/DoRA (Tetap simpan lora_dropout jika dipakai oleh ProDiAL)
         clean_cfg.pop("lora_r", None)
         clean_cfg.pop("lora_alpha", None)
-        clean_cfg.pop("lora_dropout", None)
 
     return clean_cfg
 
@@ -62,10 +73,25 @@ def sanitize_loss_hparams(config: dict) -> dict:
 
     return clean_cfg
 
+def sanitize_class_weight_hparams(config: dict) -> dict:
+    """Membersihkan parameter class weight yang tidak relevan agar JSON log tetap rapi."""
+    clean_cfg = config.copy()
+    if not clean_cfg.get("use_class_weights", False):
+        for key in ["weight_mode", "weight_beta", "weight_delta"]:
+            clean_cfg.pop(key, None)
+    else:
+        mode = clean_cfg.get("weight_mode", "sqrt")
+        if mode not in ["s-b", "d-b-mcc"]:
+            clean_cfg.pop("weight_beta", None)
+        if mode != "d-b-mcc":
+            clean_cfg.pop("weight_delta", None)
+    return clean_cfg
+
 def sanitize_all_hparams(config: dict) -> dict:
-    """Master function untuk membersihkan hparams PEFT dan Loss secara sekaligus."""
+    """Master function untuk membersihkan hparams PEFT, Loss, dan Class Weights secara sekaligus."""
     clean_cfg = sanitize_peft_hparams(config)
     clean_cfg = sanitize_loss_hparams(clean_cfg)
+    clean_cfg = sanitize_class_weight_hparams(clean_cfg)
     return clean_cfg
 
 def run_mock_test(model, train_loader, device, gpu_transform):

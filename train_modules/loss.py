@@ -2,76 +2,147 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def compute_class_weights(train_loader, num_classes, device):
-    """Menghitung bobot kelas berbasis inversi frekuensi ter-clamp."""
-    if hasattr(train_loader.dataset, 'labels'):
-        train_labels = torch.tensor(train_loader.dataset.labels)
-    elif hasattr(train_loader.dataset, 'targets'):
-        train_labels = torch.tensor(train_loader.dataset.targets)
+import torch
+
+def compute_class_weights(
+    train_loader,
+    num_classes,
+    device,
+    use_class_weights=True,
+    weight_mode="sqrt",
+    beta=0.999,
+    delta=0.5,
+    per_class_mcc=None,
+    class_counts=None,  # 🌟 1. Disamakan nama parameternya menjadi plural
+):
+    """Menghitung bobot kelas berdasarkan strategi statis maupun dinamis (MCC Feedback)."""
+
+    # 🌟 2. Logika Caching: Ekstrak label HANYA jika class_counts belum ada di memori
+    if class_counts is None:
+        if hasattr(train_loader.dataset, "labels"):
+            train_labels = torch.tensor(train_loader.dataset.labels)
+        elif hasattr(train_loader.dataset, "targets"):
+            train_labels = torch.tensor(train_loader.dataset.targets)
+        else:
+            train_labels = torch.tensor(
+                [label for _, label in train_loader.dataset]
+            )
+
+        train_labels = train_labels.view(-1).long()
+        class_counts = torch.bincount(train_labels, minlength=num_classes)
+
+    total_samples = int(class_counts.sum().item())
+    N_c = class_counts.float().to(device)
+
+    # Jika use_class_weights == False, kembalikan bobot netral [1.0, 1.0, 1.0]
+    if not use_class_weights:
+        class_weights = torch.ones(num_classes, device=device)
+        return class_weights, class_counts
+
+    # Kalkulasi Berdasarkan weight_mode
+    if weight_mode == "sqrt":
+        raw_weights = torch.sqrt(total_samples / (num_classes * N_c))
+
+    elif weight_mode == "linear":
+        raw_weights = total_samples / (num_classes * N_c)
+
+    elif weight_mode in ["s-b", "d-b-mcc"]:
+        # Class-Balanced berbasis Effective Number of Samples (Cui et al., 2019)
+        effective_num = (1.0 - torch.pow(beta, N_c)) / (1.0 - beta)
+        raw_weights = 1.0 / effective_num
+        raw_weights = raw_weights / raw_weights.sum() * num_classes
+
+        # Tambahkan Penyesuaian Dinamis MCC jika mode 'd-b-mcc' dan per_class_mcc tersedia
+        if weight_mode == "d-b-mcc" and per_class_mcc is not None:
+            # 🌟 3. Sanitasi Safe-Parsing: Ubah None/NaN menjadi 0.0 (netral) agar gradien tidak terkontaminasi NaN
+            clean_mcc = [
+                0.0 if (m is None or torch.isnan(torch.tensor(m))) else float(m)
+                for m in per_class_mcc
+            ]
+            mcc_tensor = torch.tensor(
+                clean_mcc, dtype=torch.float32, device=device
+            )
+
+            # Normalisasi error MCC dari [-1, 1] ke rentang [0, 1]
+            error_mcc = (1.0 - mcc_tensor) / 2.0
+            # Suku adaptif: (1 + delta * error_mcc)
+            adaptive_factor = 1.0 + (delta * error_mcc)
+            raw_weights = raw_weights * adaptive_factor
+
     else:
-        train_labels = torch.tensor([label for _, label in train_loader.dataset])
+        raise ValueError(f"Unknown weight_mode: {weight_mode}")
 
-    train_labels = train_labels.view(-1).long()
-    class_counts = torch.bincount(train_labels, minlength=num_classes)
-    total_samples = len(train_labels)
-    
-    raw_weights = torch.sqrt(total_samples / (num_classes * class_counts.float()))
-    class_weights = torch.clamp(raw_weights, min=0.5, max=3.0).to(device)
-    
-    print(f"⚖️ [Class Imbalance] Distribusi Label Train: {class_counts.tolist()}")
-    print(f"⚖️ [Class Weights]   : {class_weights.tolist()}")
+    # Clamp batas aman agar tidak terjadi pergeseran gradien ekstrem
+    class_weights = torch.clamp(raw_weights, min=0.1, max=10.0).to(device)
+
     return class_weights, class_counts
-
 
 class FocalLoss(nn.Module):
     """Multi-class Focal Loss (Lin et al., 2017)."""
-    def __init__(self, gamma: float = 2.0, weight: torch.Tensor = None, reduction: str = 'mean'): # type: ignore
+
+    def __init__(
+        self,
+        gamma: float = 2.0,
+        weight: torch.Tensor = None, # type: ignore
+        reduction: str = "mean",
+    ):
         super().__init__()
         self.gamma = gamma
-        self.weight = weight
         self.reduction = reduction
+        self.register_buffer("weight", weight)
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, logits: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         # logits: [B, C], targets: [B]
         log_probs = F.log_softmax(logits, dim=-1)
         probs = torch.exp(log_probs)
-        
+
         # Ambil log_prob & prob untuk target kelas asli
-        target_log_probs = log_probs.gather(dim=-1, index=targets.unsqueeze(1)).squeeze(1)
-        target_probs = probs.gather(dim=-1, index=targets.unsqueeze(1)).squeeze(1)
-        
+        target_log_probs = log_probs.gather(
+            dim=-1, index=targets.unsqueeze(1)
+        ).squeeze(1)
+        target_probs = probs.gather(
+            dim=-1, index=targets.unsqueeze(1)
+        ).squeeze(1)
+
         focal_weight = (1.0 - target_probs) ** self.gamma
         loss = -focal_weight * target_log_probs
 
         if self.weight is not None:
-            class_w = self.weight[targets]
+            # 🌟 Proteksi Device Mismatch
+            weight_dev = self.weight.to(logits.device)
+            class_w = weight_dev[targets] # type: ignore
             loss = loss * class_w
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         return loss
 
 
 class AsymmetricLoss(nn.Module):
     """Asymmetric Loss (ASL) for Multi-class / Multi-label (Ridnik et al., 2021)."""
+
     def __init__(
-        self, 
-        gamma_pos: float = 1.0, 
-        gamma_neg: float = 4.0, 
-        margin: float = 0.05, 
+        self,
+        gamma_pos: float = 1.0,
+        gamma_neg: float = 4.0,
+        margin: float = 0.05,
         weight: torch.Tensor = None, # type: ignore
-        reduction: str = 'mean'
+        reduction: str = "mean",
     ):
         super().__init__()
         self.gamma_pos = gamma_pos
         self.gamma_neg = gamma_neg
         self.margin = margin
-        self.weight = weight
         self.reduction = reduction
+        self.register_buffer("weight", weight)
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, logits: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         probs = F.softmax(logits, dim=-1).clamp(min=1e-6, max=1.0 - 1e-6)
         targets_onehot = F.one_hot(targets, num_classes=logits.size(-1)).float()
 
@@ -79,32 +150,50 @@ class AsymmetricLoss(nn.Module):
         probs_neg = (probs - self.margin).clamp(min=0.0)
 
         # Positive & Negative Loss Terms
-        loss_pos = -targets_onehot * ((1.0 - probs) ** self.gamma_pos) * torch.log(probs)
-        loss_neg = -(1.0 - targets_onehot) * (probs_neg ** self.gamma_neg) * torch.log((1.0 - probs_neg).clamp(min=1e-6))
+        loss_pos = (
+            -targets_onehot
+            * ((1.0 - probs) ** self.gamma_pos)
+            * torch.log(probs)
+        )
+        loss_neg = (
+            -(1.0 - targets_onehot)
+            * (probs_neg**self.gamma_neg)
+            * torch.log((1.0 - probs_neg).clamp(min=1e-6))
+        )
 
         loss = loss_pos + loss_neg
 
         if self.weight is not None:
-            loss = loss * self.weight.unsqueeze(0)
+            # 🌟 Proteksi Device Mismatch
+            weight_dev = self.weight.to(logits.device)
+            loss = loss * weight_dev.unsqueeze(0) # type: ignore
 
-        loss = loss.sum(dim=-1) # Sum over classes
+        loss = loss.sum(dim=-1)  # Sum over classes
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         return loss
 
 
 class FECELoss(nn.Module):
     """Focal Balanced Exponential Cross Entropy (F-ECE) Loss (Liu et al., Neurocomputing 2026)."""
-    def __init__(self, gamma: float = 2.0, weight: torch.Tensor = None, reduction: str = 'mean'): # type: ignore
+
+    def __init__(
+        self,
+        gamma: float = 2.0,
+        weight: torch.Tensor = None, # type: ignore
+        reduction: str = "mean",
+    ):
         super().__init__()
         self.gamma = gamma
-        self.weight = weight
         self.reduction = reduction
+        self.register_buffer("weight", weight)
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, logits: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         probs = F.softmax(logits, dim=-1)
         targets_onehot = F.one_hot(targets, num_classes=logits.size(-1)).float()
 
@@ -114,22 +203,25 @@ class FECELoss(nn.Module):
 
         # 🌟 Negative Term: Focal Negative -> - p^gamma * log(1 - p)
         probs_neg = probs.clamp(max=1.0 - 1e-6)
-        loss_neg = (1.0 - targets_onehot) * (-(probs_neg ** self.gamma) * torch.log(1.0 - probs_neg))
+        loss_neg = (1.0 - targets_onehot) * (
+            -(probs_neg**self.gamma) * torch.log(1.0 - probs_neg)
+        )
 
         loss = loss_pos + loss_neg
 
         if self.weight is not None:
-            loss = loss * self.weight.unsqueeze(0)
+            # 🌟 Proteksi Device Mismatch
+            weight_dev = self.weight.to(logits.device)
+            loss = loss * weight_dev.unsqueeze(0) # type: ignore
 
         loss = loss.sum(dim=-1)
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         return loss
-
-
+    
 def build_loss_criterion(config: dict, class_weights: torch.Tensor = None) -> nn.Module: # type: ignore
     """Factory Function untuk membangun kriteria Loss Function berdasarkan CONFIG."""
     loss_type = config.get("loss_type", "ce").lower()

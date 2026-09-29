@@ -46,12 +46,25 @@ def build_optimizer_and_scheduler(model, effective_lr, weight_decay, warmup_epoc
     return optimizer, scheduler, dora_magnitude_params
 
 def evaluate_best_checkpoints(
-    logger, device, criterion, class_counts, class_weights,
-    best_mcc_epoch, best_loss_epoch, best_val_mcc, best_val_loss,
-    path_best_val_mcc, path_best_val_loss,
-    train_eval_loader, val_loader, test_loader, gpu_eval_transform
+    logger,
+    device,
+    criterion,
+    class_counts,
+    class_weights,
+    best_mcc_epoch,
+    best_loss_epoch,
+    best_val_mcc,
+    best_val_loss,
+    path_best_val_mcc,
+    path_best_val_loss,
+    train_eval_loader,
+    val_loader,
+    test_loader,
+    gpu_eval_transform,
 ):
-    print("\n🧪 Mengevaluasi Performance (Train, Val, Test Set) untuk Kedua Model Terbaik...")
+    print(
+        "\n🧪 Mengevaluasi Performance (Train, Val, Test Set) untuk Kedua Model Terbaik..."
+    )
 
     def wrap_eval_results(eval_tuple):
         if eval_tuple is None or eval_tuple[0] is None:
@@ -60,7 +73,7 @@ def evaluate_best_checkpoints(
         res_dict = {
             "confusion_matrix": cm.tolist() if hasattr(cm, "tolist") else cm,
             "global_metrics": metrics_dict["global_metrics"],
-            "per_class_metrics": metrics_dict["per_class_metrics"]
+            "per_class_metrics": metrics_dict["per_class_metrics"],
         }
         return res_dict, cm
 
@@ -71,123 +84,215 @@ def evaluate_best_checkpoints(
 
         print(f"  --> Evaluasi Model '{desc_tag}'...")
 
-        # 1. Bersihkan RAM & VRAM sebelum inisialisasi model
+        # 1. Bersihkan RAM & VRAM
         gc.collect()
         torch.cuda.empty_cache()
 
-        # 2. Inisialisasi Arsitektur
+        # 2. Inisialisasi Arsitektur Model
         eval_m = DWTMamba(
-            in_channels=CONFIG["in_channels"], num_classes=CONFIG["num_classes"],
-            embed_dim=CONFIG["embed_dim"], depth=CONFIG["depth"],
-            mamba_d_state=CONFIG["mamba_d_state"], mamba_d_conv=CONFIG["mamba_d_conv"],
-            mamba_expand=CONFIG["mamba_expand"], se_reduction=CONFIG["se_reduction"],
-            mb_gsf_reduction=CONFIG["mb_gsf_reduction"], latent_dim=CONFIG["latent_dim"],
-            proj_dim=CONFIG["proj_dim"]
+            in_channels=CONFIG["in_channels"],
+            num_classes=CONFIG["num_classes"],
+            embed_dim=CONFIG["embed_dim"],
+            depth=CONFIG["depth"],
+            mamba_d_state=CONFIG["mamba_d_state"],
+            mamba_d_conv=CONFIG["mamba_d_conv"],
+            mamba_expand=CONFIG["mamba_expand"],
+            se_reduction=CONFIG["se_reduction"],
+            mb_gsf_reduction=CONFIG["mb_gsf_reduction"],
+            latent_dim=CONFIG["latent_dim"],
+            proj_dim=CONFIG["proj_dim"],
         ).to(device)
 
-        active_r = CONFIG["prodial_r_eps"] if CONFIG["peft_method"] == "prodial" else CONFIG["lora_r"]
+        active_r = (
+            CONFIG["prodial_r_eps"]
+            if CONFIG["peft_method"] == "prodial"
+            else CONFIG["lora_r"]
+        )
 
         eval_m = apply_peft(
-            eval_m, method=CONFIG["peft_method"],
-            target_modules=CONFIG.get("target_modules", None),
-            r=active_r, alpha=CONFIG["lora_alpha"],
-            dropout=CONFIG["lora_dropout"], r_b=CONFIG["prodial_r_b"]
+            eval_m,
+            method=CONFIG["peft_method"],
+            target_modules=CONFIG.get("target_modules", None),  # type: ignore
+            r=active_r,
+            alpha=CONFIG["lora_alpha"],
+            dropout=CONFIG["lora_dropout"],
+            r_b=CONFIG["prodial_r_b"],
         ).to(device)
 
-        # 3. Load State Dict & Set Mode Evaluasi Eksplisit
-        state_dict = torch.load(ckpt_path, map_location=device)
-        eval_m.load_state_dict(state_dict)
+        # 3. 🌟 Ekstrak Checkpoint & Class Weights Masing-Masing Epoch
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        if isinstance(checkpoint, dict) and "model_state" in checkpoint:
+            model_state = checkpoint["model_state"]
+            ckpt_weights = checkpoint.get("class_weights", None)
+        else:
+            model_state = checkpoint
+            ckpt_weights = None
+
+        eval_m.load_state_dict(model_state)
+
+        # 🌟 Pasang class_weights spesifik epoch ini ke criterion sebelum evaluasi
+        if ckpt_weights is not None:
+            if hasattr(criterion, "weight"):
+                setattr(criterion, "weight", ckpt_weights.to(device))
+            elif hasattr(criterion, "loss_fn") and hasattr(
+                getattr(criterion, "loss_fn"), "weight"
+            ):
+                setattr(criterion.loss_fn, "weight", ckpt_weights.to(device))
+
         eval_m.eval()
 
-        # 4. Jalankan Evaluasi (Train, Val, Test) dalam blok torch.no_grad()
+        # 4. Jalankan Evaluasi (Train, Val, Test)
         with torch.no_grad():
-            tr_eval = evaluate(eval_m, train_eval_loader, criterion, device, gpu_eval_transform, desc=f"Eval Train ({desc_tag})")
-            va_eval = evaluate(eval_m, val_loader, criterion, device, gpu_eval_transform, desc=f"Eval Val ({desc_tag})")
-            
+            tr_eval = evaluate(
+                eval_m,
+                train_eval_loader,
+                criterion,
+                device,
+                gpu_eval_transform,
+                desc=f"Eval Train ({desc_tag})",
+            )
+            va_eval = evaluate(
+                eval_m,
+                val_loader,
+                criterion,
+                device,
+                gpu_eval_transform,
+                desc=f"Eval Val ({desc_tag})",
+            )
+
             te_eval = None
             if test_loader is not None:
-                te_eval = evaluate(eval_m, test_loader, criterion, device, gpu_eval_transform, desc=f"Testing ({desc_tag})")
+                te_eval = evaluate(
+                    eval_m,
+                    test_loader,
+                    criterion,
+                    device,
+                    gpu_eval_transform,
+                    desc=f"Testing ({desc_tag})",
+                )
 
-        # 5. Segera Hancurkan Model & State Dict dari GPU
-        del eval_m, state_dict
+        # 5. Cleanup GPU Memory
+        del eval_m, checkpoint, model_state
         gc.collect()
         torch.cuda.empty_cache()
 
-        # Helper ekstrak tuple mentah hasil evaluate() -> (loss, acc, eval_tuple)
         def extract_raw_tuple(res):
-            if res is None: return None
+            if res is None:
+                return None
             return res[2] if len(res) == 3 else res
 
         tr_raw = extract_raw_tuple(tr_eval)
         va_raw = extract_raw_tuple(va_eval)
         te_raw = extract_raw_tuple(te_eval)
 
-        # 6. Kompresi ke format dict metrik ringan & langsung bebaskan array mentah
         tr_res, _ = wrap_eval_results(tr_raw)
         va_res, _ = wrap_eval_results(va_raw)
         te_res, cm_te = wrap_eval_results(te_raw)
 
-        # Hapus array prediksi mentah yang membebani RAM Host
         del tr_raw, va_raw, tr_eval, va_eval, te_eval
         gc.collect()
 
         return tr_res, va_res, te_res, cm_te, te_raw
 
-    same_best_epoch = (best_mcc_epoch == best_loss_epoch)
+    same_best_epoch = best_mcc_epoch == best_loss_epoch
 
     # 1. Evaluasi Checkpoint 1 (Best Val MCC)
-    tr_mcc_res, va_mcc_res, te_mcc_res, cm_mcc, te_raw_mcc = eval_single_checkpoint(
-        path_best_val_mcc, f"Best MCC (Ep {best_mcc_epoch})"
+    tr_mcc_res, va_mcc_res, te_mcc_res, cm_mcc, te_raw_mcc = (
+        eval_single_checkpoint(
+            path_best_val_mcc, f"Best MCC (Ep {best_mcc_epoch})"
+        )
     )
 
     # 2. Evaluasi Checkpoint 2 (Best Val Loss)
     if same_best_epoch:
-        print("💡 Epoch terbaik MCC dan Loss sama! Menggunakan hasil evaluasi yang sama.")
+        print(
+            "💡 Epoch terbaik MCC dan Loss sama! Menggunakan hasil evaluasi yang sama."
+        )
         tr_loss_res, va_loss_res, te_loss_res, cm_loss, te_raw_loss = (
-            tr_mcc_res, va_mcc_res, te_mcc_res, cm_mcc, te_raw_mcc
+            tr_mcc_res,
+            va_mcc_res,
+            te_mcc_res,
+            cm_mcc,
+            te_raw_mcc,
         )
     else:
-        tr_loss_res, va_loss_res, te_loss_res, cm_loss, te_raw_loss = eval_single_checkpoint(
-            path_best_val_loss, f"Best Loss (Ep {best_loss_epoch})"
+        tr_loss_res, va_loss_res, te_loss_res, cm_loss, te_raw_loss = (
+            eval_single_checkpoint(
+                path_best_val_loss, f"Best Loss (Ep {best_loss_epoch})"
+            )
         )
 
     logger.export_csv()
     if te_raw_mcc is not None:
-        logger.plot_learning_curves(test_eval=te_raw_mcc, filename="training_dashboard.png")
+        logger.plot_learning_curves(
+            test_eval=te_raw_mcc, filename="training_dashboard.png"
+        )
 
     summary_json_path = os.path.join(logger.save_dir, "best_model_metrics.json")
     with open(summary_json_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "dataset_info": {
-                "num_classes": CONFIG["num_classes"],
-                "class_labels": logger.class_names if hasattr(logger, "class_names") else ["Normal", "Ischemia", "Bleeding"],
-                "train_class_counts": class_counts.tolist(),
-                "class_weights": class_weights.cpu().tolist()
+        json.dump(
+            {
+                "dataset_info": {
+                    "num_classes": CONFIG["num_classes"],
+                    "class_labels": logger.class_names
+                    if hasattr(logger, "class_names")
+                    else ["Normal", "Ischemia", "Bleeding"],
+                    "train_class_counts": class_counts.tolist(),
+                    "initial_class_weights": class_weights.cpu().tolist(),
+                },
+                "hyperparameters": logger.hparams
+                if hasattr(logger, "hparams")
+                else CONFIG,
+                "model_by_val_mcc": {
+                    "criterion": "best_val_mcc",
+                    "best_epoch": best_mcc_epoch,
+                    "best_metric_value": best_val_mcc,
+                    "train_results": tr_mcc_res,
+                    "val_results": va_mcc_res,
+                    "test_results": te_mcc_res,
+                },
+                "model_by_val_loss": {
+                    "criterion": "best_val_loss",
+                    "best_epoch": best_loss_epoch,
+                    "best_metric_value": best_val_loss,
+                    "train_results": tr_loss_res,
+                    "val_results": va_loss_res,
+                    "test_results": te_loss_res,
+                },
             },
-            "hyperparameters": logger.hparams if hasattr(logger, "hparams") else CONFIG,
-            "model_by_val_mcc": {
-                "criterion": "best_val_mcc", "best_epoch": best_mcc_epoch, "best_metric_value": best_val_mcc,
-                "train_results": tr_mcc_res, "val_results": va_mcc_res, "test_results": te_mcc_res
-            },
-            "model_by_val_loss": {
-                "criterion": "best_val_loss", "best_epoch": best_loss_epoch, "best_metric_value": best_val_loss,
-                "train_results": tr_loss_res, "val_results": va_loss_res, "test_results": te_loss_res
-            }
-        }, f, indent=4)
+            f,
+            indent=4,
+        )
 
     if cm_mcc is not None:
-        logger.plot_confusion_matrix(cm_mcc, filename="test_confusion_matrix_by_mcc.png")
+        logger.plot_confusion_matrix(
+            cm_mcc, filename="test_confusion_matrix_by_mcc.png"
+        )
     if cm_loss is not None:
-        logger.plot_confusion_matrix(cm_loss, filename="test_confusion_matrix_by_loss.png")
+        logger.plot_confusion_matrix(
+            cm_loss, filename="test_confusion_matrix_by_loss.png"
+        )
 
-    print(f"✨ Eksperimen Selesai! Seluruh metrik disimpan di: {summary_json_path}")
+    print(
+        f"✨ Eksperimen Selesai! Seluruh metrik disimpan di: {summary_json_path}"
+    )
 
 def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, logger, device, train_eval_loader):
     train_loader, val_loader, test_loader = loaders
     gpu_train_transform, gpu_eval_transform = transforms
     amp_dtype, use_bf16, scaler = amp_params
 
-    class_weights, class_counts = compute_class_weights(train_loader, CONFIG["num_classes"], device)
+    class_weights, class_counts = compute_class_weights(
+        train_loader=train_loader,
+        num_classes=CONFIG["num_classes"],
+        device=device,
+        use_class_weights=CONFIG["use_class_weights"],
+        weight_mode=CONFIG["weight_mode"],
+        beta=CONFIG["weight_beta"],
+        delta=CONFIG["weight_delta"],
+        per_class_mcc=None,
+    )
+    original_weights = class_weights.clone()
     criterion = build_loss_criterion(CONFIG, class_weights=class_weights)
 
     # 2. Setup Optimizer & Scheduler
@@ -213,6 +318,17 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             scheduler.load_state_dict(checkpoint["scheduler_state"])
         if scaler and checkpoint.get("scaler_state"):
             scaler.load_state_dict(checkpoint["scaler_state"])
+        if (
+            "class_weights" in checkpoint
+            and checkpoint["class_weights"] is not None
+        ):
+            class_weights = checkpoint["class_weights"].to(device)
+            if hasattr(criterion, "weight"):
+                setattr(criterion, "weight", class_weights)
+            elif hasattr(criterion, "loss_fn") and hasattr(
+                getattr(criterion, "loss_fn"), "weight"
+            ):
+                setattr(criterion.loss_fn, "weight", class_weights)
         
         start_epoch = checkpoint["epoch"] + 1
         best_val_mcc = checkpoint.get("best_val_mcc", -1.0)
@@ -239,18 +355,60 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             val_f1, val_mcc = val_metrics["global_metrics"]["f1_score_macro"], val_metrics["global_metrics"]["mcc"]
             current_lr = optimizer.param_groups[1]['lr']
 
+            if (
+                CONFIG["use_class_weights"]
+                and CONFIG["weight_mode"] == "d-b-mcc"
+                and "per_class_metrics" in val_metrics
+            ):
+
+                # 🌟 Ambil nilai MCC OvR per-kelas berdasarkan nama kelas
+                per_class_mcc_list = [
+                    val_metrics["per_class_metrics"][logger.class_names[cls_idx]]["mcc"]
+                    for cls_idx in range(CONFIG["num_classes"])
+                ]
+
+                # Hitung vektor bobot baru untuk Epoch berikutnya
+                class_weights, _ = compute_class_weights(
+                    train_loader=train_loader,
+                    num_classes=CONFIG["num_classes"],
+                    device=device,
+                    use_class_weights=True,
+                    weight_mode="d-b-mcc",
+                    beta=CONFIG["weight_beta"],
+                    delta=CONFIG["weight_delta"],
+                    per_class_mcc=per_class_mcc_list,
+                    class_counts=class_counts,  # Fast caching
+                )
+
+                # Perbarui bobot pada Loss Criterion
+                if hasattr(criterion, "weight"):
+                    setattr(criterion, "weight", class_weights)
+                elif hasattr(criterion, "loss_fn") and hasattr(
+                    getattr(criterion, "loss_fn"), "weight"
+                ):
+                    setattr(criterion.loss_fn, "weight", class_weights)
+
             is_mcc_improved = val_mcc > (best_val_mcc + CONFIG["early_stop_delta"])
             is_loss_improved = val_loss < (best_val_loss - CONFIG["early_stop_delta"])
 
             status_notes = []
             if is_mcc_improved:
                 best_val_mcc, best_mcc_epoch = val_mcc, epoch
-                safe_atomic_save(raw_model.state_dict(), path_best_val_mcc)
+                safe_atomic_save({
+                    "model_state": raw_model.state_dict(),
+                    "class_weights": class_weights,
+                }, path_best_val_mcc)
                 status_notes.append(f"🎯 Best Val MCC Saved ({val_mcc:.4f})")
 
             if is_loss_improved:
                 best_val_loss, best_loss_epoch = val_loss, epoch
-                safe_atomic_save(raw_model.state_dict(), path_best_val_loss)
+                safe_atomic_save(
+                    {
+                        "model_state": raw_model.state_dict(),
+                        "class_weights": class_weights,
+                    },
+                    path_best_val_loss,
+                )
                 status_notes.append(f"📉 Best Val Loss Saved ({val_loss:.4f})")
 
             if is_mcc_improved or is_loss_improved:
@@ -260,7 +418,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                 patience_counter += 1
                 status_msg = f"  --> ⏳ Patience: [{patience_counter}/{CONFIG['early_stop_patience']}]"
 
-            logger.log_epoch(epoch, train_loss, val_loss, train_acc, val_acc, val_f1, val_mcc, current_lr, patience_counter)
+            logger.log_epoch(epoch, train_loss, val_loss, train_acc, val_acc, val_f1, val_mcc, current_lr, patience_counter, class_weights=class_weights)
             logger.export_csv()
 
             print(f"Epoch [{epoch:03d}/{CONFIG['max_epochs']}] | LR: {current_lr:.6f} | "
@@ -270,7 +428,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
             safe_atomic_save({
                 "epoch": epoch, "model_state": raw_model.state_dict(),
                 "optimizer_state": optimizer.state_dict(), "scheduler_state": scheduler.state_dict(),
-                "scaler_state": scaler.state_dict() if scaler else None,
+                "scaler_state": scaler.state_dict() if scaler else None, "class_weights": class_weights,
                 "best_val_mcc": best_val_mcc, "best_val_loss": best_val_loss,
                 "best_mcc_epoch": best_mcc_epoch, "best_loss_epoch": best_loss_epoch,
                 "patience_counter": patience_counter,
@@ -299,7 +457,7 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
 
     # 6. Eksekusi Evaluasi Akhir
     evaluate_best_checkpoints(
-        logger, device, criterion, class_counts, class_weights,
+        logger, device, criterion, class_counts, original_weights,
         best_mcc_epoch, best_loss_epoch, best_val_mcc, best_val_loss,
         path_best_val_mcc, path_best_val_loss,
         train_eval_loader, val_loader, test_loader, gpu_eval_transform
