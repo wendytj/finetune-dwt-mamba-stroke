@@ -28,7 +28,7 @@ def main():
     for key, value in vars(args).items():
             if value is not None:
                 CONFIG[key] = value
-                
+
     if args.target_modules:
         CONFIG["target_modules"] = args.target_modules
 
@@ -109,8 +109,8 @@ def main():
     )
     model = model.to(device).to(memory_format=torch.channels_last) # type: ignore
 
-    if hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
+    # if hasattr(model, "gradient_checkpointing_enable"):
+    #     model.gradient_checkpointing_enable()
 
     raw_model = model
 
