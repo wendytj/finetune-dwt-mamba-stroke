@@ -13,6 +13,7 @@ def compute_class_weights(
     beta=0.999,
     delta=0.5,
     per_class_mcc=None,
+    per_class_acc= None,
     class_counts=None,  # 🌟 1. Disamakan nama parameternya menjadi plural
 ):
     """Menghitung bobot kelas berdasarkan strategi statis maupun dinamis (MCC Feedback)."""
@@ -46,27 +47,32 @@ def compute_class_weights(
     elif weight_mode == "linear":
         raw_weights = total_samples / (num_classes * N_c)
 
-    elif weight_mode in ["s-b", "d-b-mcc"]:
+    elif weight_mode in ["s-b", "d-b-mcc", "d-b-acc"]:
         # Class-Balanced berbasis Effective Number of Samples (Cui et al., 2019)
         effective_num = (1.0 - torch.pow(beta, N_c)) / (1.0 - beta)
         raw_weights = 1.0 / effective_num
         raw_weights = raw_weights / raw_weights.sum() * num_classes
 
-        # Tambahkan Penyesuaian Dinamis MCC jika mode 'd-b-mcc' dan per_class_mcc tersedia
+        # 🌟 2A. Opsi Dynamic MCC
         if weight_mode == "d-b-mcc" and per_class_mcc is not None:
-            # 🌟 3. Sanitasi Safe-Parsing: Ubah None/NaN menjadi 0.0 (netral) agar gradien tidak terkontaminasi NaN
             clean_mcc = [
                 0.0 if (m is None or torch.isnan(torch.tensor(m))) else float(m)
                 for m in per_class_mcc
             ]
-            mcc_tensor = torch.tensor(
-                clean_mcc, dtype=torch.float32, device=device
-            )
-
-            # Normalisasi error MCC dari [-1, 1] ke rentang [0, 1]
+            mcc_tensor = torch.tensor(clean_mcc, dtype=torch.float32, device=device)
             error_mcc = (1.0 - mcc_tensor) / 2.0
-            # Suku adaptif: (1 + delta * error_mcc)
             adaptive_factor = 1.0 + (delta * error_mcc)
+            raw_weights = raw_weights * adaptive_factor
+
+        # 🌟 2B. Opsi Dynamic Accuracy / Recall per Kelas
+        elif weight_mode == "d-b-acc" and per_class_acc is not None:
+            clean_acc = [
+                0.0 if (a is None or torch.isnan(torch.tensor(a))) else float(a)
+                for a in per_class_acc
+            ]
+            acc_tensor = torch.tensor(clean_acc, dtype=torch.float32, device=device)
+            error_acc = 1.0 - acc_tensor  # Akurasi [0, 1] -> Error = 1 - Accuracy
+            adaptive_factor = 1.0 + (delta * error_acc)
             raw_weights = raw_weights * adaptive_factor
 
     else:
@@ -223,7 +229,7 @@ class FECELoss(nn.Module):
         return loss
     
 def build_loss_criterion(
-    config: dict, class_weights: torch.Tensor = None
+    config: dict, class_weights: torch.Tensor = None # type: ignore
 ) -> nn.Module:  # type: ignore
     """Factory Function untuk membangun kriteria Loss Function berdasarkan CONFIG."""
     loss_type = config.get("loss_type", "ce").lower()
@@ -263,7 +269,7 @@ def build_loss_criterion(
             f"🎯 [Loss Criterion] Active: AsymmetricLoss (g_pos={g_pos}, g_neg={g_neg}, margin={margin}, {weight_str})"
         )
         return AsymmetricLoss(
-            gamma_pos=g_pos, gamma_neg=g_neg, margin=margin, weight=weights
+            gamma_pos=g_pos, gamma_neg=g_neg, margin=margin, weight=weights # type: ignore
         )  # type: ignore
 
     elif loss_type in ["fece", "f_ece", "focal_ece"]:
@@ -277,3 +283,41 @@ def build_loss_criterion(
         raise ValueError(
             f"🚨 Invalid loss_type: '{loss_type}'. Pilih opsi: ['ce', 'focal', 'asl', 'fece']."
         )
+
+if __name__ == "__main__":
+    device = torch.device("cpu")
+    num_classes = 3
+
+    # Data Imbalance Train [Normal, Ischemia, Bleeding]
+    train_class_counts = torch.tensor([3464, 902, 874], dtype=torch.float32)
+
+    print("📊 [Data Train Distribution]")
+    print(f"   • Kelas 0 (Normal)   : {int(train_class_counts[0])} sampel")
+    print(f"   • Kelas 1 (Ischemia) : {int(train_class_counts[1])} sampel")
+    print(f"   • Kelas 2 (Bleeding) : {int(train_class_counts[2])} sampel\n")
+
+    # Mode Statis yang Diuji
+    static_modes = ["sqrt", "linear", "s-b", "d-b-mcc"]
+
+    for mode in static_modes:
+        config = {
+            "loss_type": "ce",
+            "use_class_weights": True,
+            "weight_mode": mode,
+            "weight_beta": 0.999,
+        }
+
+        # Hitung Bobot Kelas Murni dari Data Train
+        weights, _ = compute_class_weights(
+            train_loader=None,
+            num_classes=num_classes,
+            device=device,
+            use_class_weights=config["use_class_weights"],
+            weight_mode=config["weight_mode"],
+            beta=config["weight_beta"],
+            class_counts=train_class_counts,
+        )
+
+        print(f"=== Mode Pembobotan: '{mode}' ===")
+        criterion = build_loss_criterion(config, class_weights=weights)
+        print()

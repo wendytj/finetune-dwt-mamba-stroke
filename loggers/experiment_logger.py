@@ -40,18 +40,31 @@ class ExperimentLogger:
             json.dump(self.hparams, f, indent=4, default=str)
         print(f"⚙️ Hyperparameters disimpan di: {path}")
 
-    def log_epoch(self, epoch, train_loss, val_loss, train_acc, val_acc, val_f1, val_mcc, lr=0.0, patience=0, class_weights=None):
+    def log_epoch(
+        self,
+        epoch,
+        train_loss,
+        val_loss,
+        train_acc,
+        val_acc,
+        val_f1,
+        val_mcc,
+        lr=0.0,
+        patience=0,
+        class_weights=None,
+    ):
         """Catat seluruh metrik riwayat pelatihan per epoch."""
-        self.history['epoch'].append(int(epoch))
-        self.history['lr'].append(float(lr))
-        self.history['train_loss'].append(float(train_loss))
-        self.history['val_loss'].append(float(val_loss))
-        self.history['train_acc'].append(float(train_acc))
-        self.history['val_acc'].append(float(val_acc))
-        self.history['val_f1'].append(float(val_f1))
-        self.history['val_mcc'].append(float(val_mcc))
-        self.history['patience'].append(int(patience))
+        self.history["epoch"].append(int(epoch))
+        self.history["lr"].append(float(lr))
+        self.history["train_loss"].append(float(train_loss))
+        self.history["val_loss"].append(float(val_loss))
+        self.history["train_acc"].append(float(train_acc))
+        self.history["val_acc"].append(float(val_acc))
+        self.history["val_f1"].append(float(val_f1))
+        self.history["val_mcc"].append(float(val_mcc))
+        self.history["patience"].append(int(patience))
 
+        # 1. Append nilai bobot kelas jika tersedia
         if class_weights is not None:
             cw_list = (
                 class_weights.cpu().tolist()
@@ -66,20 +79,20 @@ class ExperimentLogger:
                 )
                 col_key = f"cw_{cls_name}"
 
-                # Proteksi Mismatch: Jika kolom baru muncul di tengah epoch, isi epoch sebelumnya dengan NaN/1.0
+                # Proteksi jika kolom baru muncul di tengah epoch
                 if col_key not in self.history:
                     self.history[col_key] = [np.nan] * (
                         len(self.history["epoch"]) - 1
                     )
 
                 self.history[col_key].append(round(float(w), 4))
-        else:
-            # Jika ada kolom cw_ sebelumnya tetapi epoch ini class_weights=None, isi dengan NaN agar panjang list tetap sama
-            for key in list(self.history.keys()):
-                if key.startswith("cw_") and len(self.history[key]) < len( # type: ignore
-                    self.history["epoch"]
-                ):
-                    self.history[key].append(np.nan) # type: ignore
+
+        # 2. 🌟 GUARANTEE PADDING: Pastikan SEMUA kolom cw_* sejajar dengan panjang 'epoch'
+        target_len = len(self.history["epoch"])
+        for key in list(self.history.keys()):
+            if key.startswith("cw_"): # type: ignore
+                while len(self.history[key]) < target_len:  # type: ignore
+                    self.history[key].append(np.nan)  # type: ignore
 
     def export_csv(self, filename="training_history.csv"):
         """Ekspor riwayat epoch ke CSV."""

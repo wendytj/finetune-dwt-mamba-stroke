@@ -81,9 +81,10 @@ def sanitize_class_weight_hparams(config: dict) -> dict:
             clean_cfg.pop(key, None)
     else:
         mode = clean_cfg.get("weight_mode", "sqrt")
-        if mode not in ["s-b", "d-b-mcc"]:
+        if mode not in ["s-b", "d-b-mcc", "d-b-acc"]:
             clean_cfg.pop("weight_beta", None)
-        if mode != "d-b-mcc":
+        # 🌟 weight_delta dipakai oleh d-b-mcc dan d-b-acc
+        if mode not in ["d-b-mcc", "d-b-acc"]:
             clean_cfg.pop("weight_delta", None)
     return clean_cfg
 

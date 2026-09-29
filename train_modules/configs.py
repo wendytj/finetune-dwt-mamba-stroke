@@ -98,7 +98,7 @@ def parse_args():
         "--weight_mode",
         type=str,
         default=CONFIG["weight_mode"],
-        choices=["s-b", "d-b-mcc", "sqrt", "linear"],
+        choices=["s-b", "d-b-mcc", "d-b-acc", "sqrt", "linear"],
         help="Skema pembobotan kelas",
     )
     parser.add_argument(

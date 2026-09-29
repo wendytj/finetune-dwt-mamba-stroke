@@ -291,6 +291,8 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
         beta=CONFIG["weight_beta"],
         delta=CONFIG["weight_delta"],
         per_class_mcc=None,
+        per_class_acc=None,
+        class_counts=None
     )
     original_weights = class_weights.clone()
     criterion = build_loss_criterion(CONFIG, class_weights=class_weights)
@@ -357,13 +359,15 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
 
             if (
                 CONFIG["use_class_weights"]
-                and CONFIG["weight_mode"] == "d-b-mcc"
+                and CONFIG["weight_mode"] in ["d-b-mcc", "d-b-acc"]
                 and "per_class_metrics" in val_metrics
             ):
+                # 🌟 Pilih key metrik: 'mcc' atau 'recall' langsung dari logger yang sudah ada
+                metric_key = "mcc" if CONFIG["weight_mode"] == "d-b-mcc" else "recall"
 
-                # 🌟 Ambil nilai MCC OvR per-kelas berdasarkan nama kelas
-                per_class_mcc_list = [
-                    val_metrics["per_class_metrics"][logger.class_names[cls_idx]]["mcc"]
+                # Ambil sinyal feedback per-kelas dari dictionary logger
+                per_class_signal_list = [
+                    val_metrics["per_class_metrics"][logger.class_names[cls_idx]][metric_key]
                     for cls_idx in range(CONFIG["num_classes"])
                 ]
 
@@ -373,13 +377,13 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                     num_classes=CONFIG["num_classes"],
                     device=device,
                     use_class_weights=True,
-                    weight_mode="d-b-mcc",
+                    weight_mode=CONFIG["weight_mode"],
                     beta=CONFIG["weight_beta"],
                     delta=CONFIG["weight_delta"],
-                    per_class_mcc=per_class_mcc_list,
+                    per_class_mcc=per_class_signal_list if CONFIG["weight_mode"] == "d-b-mcc" else None,
+                    per_class_acc=per_class_signal_list if CONFIG["weight_mode"] == "d-b-acc" else None,
                     class_counts=class_counts,  # Fast caching
                 )
-
                 # Perbarui bobot pada Loss Criterion
                 if hasattr(criterion, "weight"):
                     setattr(criterion, "weight", class_weights)
@@ -418,7 +422,16 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
                 patience_counter += 1
                 status_msg = f"  --> ⏳ Patience: [{patience_counter}/{CONFIG['early_stop_patience']}]"
 
-            logger.log_epoch(epoch, train_loss, val_loss, train_acc, val_acc, val_f1, val_mcc, current_lr, patience_counter, class_weights=class_weights)
+            cw_to_log = (
+                class_weights
+                if (
+                    CONFIG["use_class_weights"]
+                    and CONFIG["weight_mode"] in ["d-b-mcc", "d-b-acc"]
+                )
+                else None
+            )
+
+            logger.log_epoch(epoch, train_loss, val_loss, train_acc, val_acc, val_f1, val_mcc, current_lr, patience_counter, class_weights=cw_to_log)
             logger.export_csv()
 
             print(f"Epoch [{epoch:03d}/{CONFIG['max_epochs']}] | LR: {current_lr:.6f} | "
