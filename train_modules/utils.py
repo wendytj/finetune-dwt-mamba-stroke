@@ -35,6 +35,7 @@ def sanitize_peft_hparams(config: dict) -> dict:
         # Hapus parameter spesifik LoRA/DoRA (Tetap simpan lora_dropout jika dipakai oleh ProDiAL)
         clean_cfg.pop("lora_r", None)
         clean_cfg.pop("lora_alpha", None)
+        clean_cfg.pop("lora_dropout", None)
 
     return clean_cfg
 

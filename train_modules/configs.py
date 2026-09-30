@@ -26,7 +26,7 @@ CONFIG = {
     "proj_dim": 256,
     
     # Konfigurasi PEFT
-    "peft_method": "dora",       # 'lora', 'dora', 'prodial', atau 'full'
+    "peft_method": "prodial",       # 'lora', 'dora', 'prodial', atau 'full'
     "target_modules": [          
         "in_proj", 
         "out_proj", 
@@ -43,7 +43,7 @@ CONFIG = {
 
     # Konfigurasi Loss Function (Dinamis dari loss.py)
     "loss_type": "ce",           # Opsi: 'ce', 'focal', 'asl', 'fece'
-    "use_class_weights": True,   # Multiplexer pembobotan kelas statis
+    "use_class_weights": False,   # Multiplexer pembobotan kelas statis
     "weight_mode": "sqrt",  # Choices: 's-b', 'd-b-mcc', 'sqrt', 'linear'
     "weight_beta": 0.999,  # Parameter Class-Balanced (Cui et al., 2019)
     "weight_delta": 0.5,  # Laju Adaptasi Feedback MCC (Chandraprabha & Maya, 2026)

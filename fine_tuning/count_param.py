@@ -137,16 +137,16 @@ def main():
     print_results_table("TABEL 1: DWTMamba Dual-Track PEFT (Input 1-Channel)", results_1ch)
 
     # 2. Evaluasi Input 3-Channel (Weight Inflation)
-    results_3ch = run_parameter_benchmark(in_channels=3, args=args)
-    print_results_table("TABEL 2: DWTMamba Dual-Track PEFT (Input 3-Channel - Weight Inflated)", results_3ch)
+    # results_3ch = run_parameter_benchmark(in_channels=3, args=args)
+    # print_results_table("TABEL 2: DWTMamba Dual-Track PEFT (Input 3-Channel - Weight Inflated)", results_3ch)
 
-    # Analisis Dampak Weight Inflation
-    delta_base = results_3ch[0]["total_params"] - results_1ch[0]["total_params"]
-    print("\n💡 ANALISIS PERUBAHAN PARAMETER DARI WEIGHT INFLATION (1-Channel ➔ 3-Channel):")
-    print(f"   ├─ Total Parameter Base Model Bertambah : +{delta_base:,d} params (+32,768 dari pe_branches, +576 dari latent_encoder)")
-    print(f"   ├─ Linear PEFT Adaptor (LoRA/DoRA/ProDiaL): 0 params change (100% identik karena d_model tidak berubah)")
-    print(f"   └─ Conv CoLoRA Adaptor (Input Layers)     : +130 params change (penyesuaian depthwise/pointwise pada 3-ch input)")
-    print("=" * 108)
+    # # Analisis Dampak Weight Inflation
+    # delta_base = results_3ch[0]["total_params"] - results_1ch[0]["total_params"]
+    # print("\n💡 ANALISIS PERUBAHAN PARAMETER DARI WEIGHT INFLATION (1-Channel ➔ 3-Channel):")
+    # print(f"   ├─ Total Parameter Base Model Bertambah : +{delta_base:,d} params (+32,768 dari pe_branches, +576 dari latent_encoder)")
+    # print(f"   ├─ Linear PEFT Adaptor (LoRA/DoRA/ProDiaL): 0 params change (100% identik karena d_model tidak berubah)")
+    # print(f"   └─ Conv CoLoRA Adaptor (Input Layers)     : +130 params change (penyesuaian depthwise/pointwise pada 3-ch input)")
+    # print("=" * 108)
 
 if __name__ == "__main__":
     main()
