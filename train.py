@@ -91,7 +91,8 @@ def main():
         se_reduction=CONFIG["se_reduction"],
         mb_gsf_reduction=CONFIG["mb_gsf_reduction"],
         latent_dim=CONFIG["latent_dim"],
-        proj_dim=CONFIG["proj_dim"]
+        proj_dim=CONFIG["proj_dim"],
+        drop_rate=CONFIG["drop_rate"]
     ).to(device).to(memory_format=torch.channels_last) # type: ignore
 
     model.load_pretrained_weights(CONFIG["pretrained_path"], device=device)

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
+import torch.nn.functional as F
 import torchvision.transforms.v2 as v2
 from .debugger import unpack_split_info
 
@@ -144,6 +145,35 @@ def get_stroke_dataloaders(
             gpu_train_transform_trial3,
             gpu_eval_transform,
         )
+
+@torch.no_grad()
+def predict_with_tta(model, images): # script TTA
+  """3-Pass Affine TTA yang selaras dengan train_transform_trial3."""
+  model.eval()
+
+  # Pass 1: Gambar Asli
+  out_orig = model(images)
+
+  # Pass 2: Rotasi +3 derajat
+  img_pos = v2.functional.rotate(
+      images, angle=3, interpolation=v2.InterpolationMode.BILINEAR, fill=0 # type: ignore
+  )
+  out_pos = model(img_pos)
+
+  # Pass 3: Rotasi -3 derajat
+  img_neg = v2.functional.rotate(
+      images, angle=-3, interpolation=v2.InterpolationMode.BILINEAR, fill=0 # type: ignore
+  )
+  out_neg = model(img_neg)
+
+  # Hitung rata-rata probabilitas (Softmax dulu baru dirata-rata)
+  prob_orig = F.softmax(out_orig, dim=1)
+  prob_pos = F.softmax(out_pos, dim=1)
+  prob_neg = F.softmax(out_neg, dim=1)
+
+  final_prob = (prob_orig + prob_pos + prob_neg) / 3.0
+
+  return final_prob  # Gunakan torch.argmax(final_prob, dim=1) untuk prediksi kelas
 
 if __name__ == "__main__":
     npz_path = "data/turkey_1channel.npz"

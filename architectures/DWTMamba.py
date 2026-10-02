@@ -193,7 +193,8 @@ class DWTMamba(nn.Module):
         se_reduction=16,
         mb_gsf_reduction=4,
         latent_dim=128,
-        proj_dim=256
+        proj_dim=256,
+        drop_rate=0
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -230,6 +231,7 @@ class DWTMamba(nn.Module):
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.proj_fused = nn.Linear(embed_dim, proj_dim)
         self.proj_latent = nn.Linear(latent_dim, proj_dim)
+        self.drop = nn.Dropout(p=drop_rate)
         self.classifier = nn.Linear(proj_dim * 2, num_classes)
 
         self.apply(self._init_weights)
@@ -265,6 +267,7 @@ class DWTMamba(nn.Module):
         l_latent = self.proj_latent(z_latent)
 
         h_final = torch.cat([u_fused, l_latent], dim=1)
+        h_final = self.drop(h_final)
         logits = self.classifier(h_final)
         return logits
     

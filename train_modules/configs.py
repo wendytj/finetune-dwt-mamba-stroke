@@ -24,6 +24,7 @@ CONFIG = {
     "mb_gsf_reduction": 4,
     "latent_dim": 128,
     "proj_dim": 256,
+    "drop_rate": 0.0,
     
     # Konfigurasi PEFT
     "peft_method": "prodial",       # 'lora', 'dora', 'prodial', atau 'full'
@@ -75,6 +76,7 @@ def parse_args():
     parser.add_argument("--warmup_epochs", type=int, default=CONFIG["warmup_epochs"])
     parser.add_argument("--learning_rate", type=float, default=CONFIG["learning_rate"])
     parser.add_argument("--lr_conv_ratio", type=float, default=CONFIG["lr_conv_ratio"], help="Rasio Learning Rate layer Conv CoLoRA terhadap Effective LR")
+    parser.add_argument("--drop_rate", type=float, default=CONFIG["drop_rate"], help="Dropout rate sebelum classifier head")
     parser.add_argument("--weight_decay", type=float, default=CONFIG["weight_decay"])
     parser.add_argument("--experiment_code", type=str, default=CONFIG["experiment_code"])
     parser.add_argument("--dry_run", action="store_true")
