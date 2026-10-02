@@ -1,11 +1,11 @@
 import argparse
 
 CONFIG = {
-    "experiment_code": "dora-801010-3ch-v1",   
+    "experiment_code": "prodial-801010",   
     "seed": 42,
     
     "num_classes": 3,
-    "npz_path": "data/turkey_3channel.npz",
+    "npz_path": "data/turkey_1channel.npz",
     "pretrained_path": "weights/pretrained_weights.pth",
     "batch_size": 64,
     "eval_batch_size": 1024,
@@ -24,7 +24,7 @@ CONFIG = {
     "mb_gsf_reduction": 4,
     "latent_dim": 128,
     "proj_dim": 256,
-    "drop_rate": 0.0,
+    "drop_rate": 0.5,
     
     # Konfigurasi PEFT
     "peft_method": "prodial",       # 'lora', 'dora', 'prodial', atau 'full'
@@ -57,9 +57,9 @@ CONFIG = {
     
     # Konfigurasi Optimizer & Pelatihan
     "optimizer": "AdamW",
-    "learning_rate": 1e-4,
-    "effective_lr": 1e-4,
-    "lr_conv_ratio": 0.1,        # 🌟 Rasio LR untuk Layer Konvolusi CoLoRA (default: 0.1x Effective LR)
+    "learning_rate": 5e-4,
+    "effective_lr": 1e-3,
+    "lr_conv_ratio": 0.5,        # 🌟 Rasio LR untuk Layer Konvolusi CoLoRA (default: 0.1x Effective LR)
     "weight_decay": 1e-3,
     "max_epochs": 150,
     "warmup_epochs": 15,

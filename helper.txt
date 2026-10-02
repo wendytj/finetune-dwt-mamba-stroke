@@ -221,4 +221,24 @@ tmux new -s train 'python train.py --peft_method prodial --experiment_code prodi
 
 tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-conv-1 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 1 2>&1 | tee train.log'
 
-tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-conv-05 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 2>&1 | tee train.log'
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-01 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.1 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-02 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.2 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-03 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.3 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-04 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.4 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-05 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.5 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-06 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.6 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-dropout-07 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.7 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-decay-0 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.5 --weight_decay 0 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-decay-1e-4 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.5 --weight_decay 1e-4 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --peft_method prodial --experiment_code prodial-801010-decay-1e-2 --npz_path data/turkey_1channel.npz --learning_rate 5e-4 --lr_conv_ratio 0.5 --drop_rate 0.5 --weight_decay 1e-2 2>&1 | tee train.log'
