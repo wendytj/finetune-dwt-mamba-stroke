@@ -44,6 +44,7 @@ CONFIG = {
 
     # Konfigurasi Loss Function (Dinamis dari loss.py)
     "loss_type": "ce",           # Opsi: 'ce', 'focal', 'asl', 'fece'
+    "label_smoothing": 0.0,
     "use_class_weights": False,   # Multiplexer pembobotan kelas statis
     "weight_mode": "sqrt",  # Choices: 's-b', 'd-b-mcc', 'sqrt', 'linear'
     "weight_beta": 0.999,  # Parameter Class-Balanced (Cui et al., 2019)
@@ -95,6 +96,7 @@ def parse_args():
     parser.add_argument("--target_modules", nargs="+", default=CONFIG["target_modules"])
 
     parser.add_argument("--loss_type", type=str, default=CONFIG["loss_type"], choices=["ce", "focal", "asl", "fece"], help="Pilihan fungsi loss")
+    parser.add_argument("--label_smoothing", type=float, default=CONFIG["label_smoothing"], help="Faktor label smoothing untuk Loss function")
     parser.add_argument("--use_class_weights", action=argparse.BooleanOptionalAction, default=CONFIG["use_class_weights"], help="Gunakan pembobotan kelas statis")
     parser.add_argument(
         "--weight_mode",

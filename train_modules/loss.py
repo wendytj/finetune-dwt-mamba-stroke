@@ -233,6 +233,7 @@ def build_loss_criterion(
 ) -> nn.Module:  # type: ignore
     """Factory Function untuk membangun kriteria Loss Function berdasarkan CONFIG."""
     loss_type = config.get("loss_type", "ce").lower()
+    label_smoothing = config.get("label_smoothing", 0.0)
     use_weights = (
         config.get("use_class_weights", True) and class_weights is not None
     )
@@ -251,8 +252,8 @@ def build_loss_criterion(
         weight_str = "Weighted=False"
 
     if loss_type in ["ce", "cross_entropy"]:
-        print(f"🎯 [Loss Criterion] Active: CrossEntropyLoss ({weight_str})")
-        return nn.CrossEntropyLoss(weight=weights)
+        print(f"🎯 [Loss Criterion] Active: CrossEntropyLoss (label_smoothing={label_smoothing}, {weight_str})")
+        return nn.CrossEntropyLoss(weight=weights, label_smoothing=label_smoothing)
         
     elif loss_type in ["focal", "focal_loss"]:
         gamma = config.get("focal_gamma", 2.0)
