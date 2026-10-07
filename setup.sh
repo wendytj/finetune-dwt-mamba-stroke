@@ -71,4 +71,4 @@ echo "================================================="
 # gdown 15ZsEQfC6LeDV-XphkP3j9_WVXdvyxblc -O data/turkey_1channel_fixpad.npz
 
 # gdown 17j7ioDcVH4teAzaVJPq1sMkTNmyPUYJ9 -O data/dataset_1ch_384x384_nocrop.npz
-# gdown 17j7ioDcVH4teAzaVJPq1sMkTNmyPUYJ9 -O data/dataset_1ch_512x512_nocrop.npz
+# gdown 16tuI54qL7JNxXhj9WpqJCM-2v8UZNd67 -O data/dataset_1ch_512x512_nocrop.npz
