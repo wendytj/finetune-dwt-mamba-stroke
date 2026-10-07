@@ -19,12 +19,19 @@ echo "📂 [4/4] Preparing Dataset & Pretrained Weights..."
 mkdir -p data
 mkdir -p weights
 
-if [ ! -f "data/turkey_1channel.npz" ]; then
-    echo "Downloading dataset Turkey 1-Channel..."
-    gdown 1HuSEUKz7PEFRAK75Q8RfcPUDiRr8Th_V -O data/turkey_1channel.npz
+if [ ! -f "data/dataset_1ch_224x224_crop.npz" ]; then
+    echo "Downloading dataset Turkey 1-Channel 224x224 With Crop..."
+    gdown 1c1xkO2s0ZveVqorJV-kwdIRPyY7f-n2s -O data/dataset_1ch_224x224_crop.npz
 else
-    echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
+    echo "✅ Dataset Turkey 1-Channel 224x224 With Crop sudah ada, melewati proses unduh."
 fi
+
+# if [ ! -f "data/turkey_1channel.npz" ]; then
+#     echo "Downloading dataset Turkey 1-Channel..."
+#     gdown 1HuSEUKz7PEFRAK75Q8RfcPUDiRr8Th_V -O data/turkey_1channel.npz
+# else
+#     echo "✅ Dataset Turkey 1-Channel sudah ada, melewati proses unduh."
+# fi
 
 # if [ ! -f "data/turkey_3channel.npz" ]; then
 #     echo "Downloading dataset Turkey 3-Channel..."

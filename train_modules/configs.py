@@ -24,7 +24,7 @@ CONFIG = {
     "mb_gsf_reduction": 4,
     "latent_dim": 128,
     "proj_dim": 256,
-    "drop_rate": 0.5,
+    "drop_rate": 0,
     
     # Konfigurasi PEFT
     "peft_method": "prodial",       # 'lora', 'dora', 'prodial', atau 'full'
@@ -45,7 +45,7 @@ CONFIG = {
     # Konfigurasi Loss Function (Dinamis dari loss.py)
     "loss_type": "ce",           # Opsi: 'ce', 'focal', 'asl', 'fece'
     "label_smoothing": 0.0,
-    "use_class_weights": False,   # Multiplexer pembobotan kelas statis
+    "use_class_weights": True,   # Multiplexer pembobotan kelas statis
     "weight_mode": "sqrt",  # Choices: 's-b', 'd-b-mcc', 'sqrt', 'linear'
     "weight_beta": 0.999,  # Parameter Class-Balanced (Cui et al., 2019)
     "weight_delta": 0.5,  # Laju Adaptasi Feedback MCC (Chandraprabha & Maya, 2026)
@@ -58,9 +58,9 @@ CONFIG = {
     
     # Konfigurasi Optimizer & Pelatihan
     "optimizer": "AdamW",
-    "learning_rate": 5e-4,
-    "effective_lr": 1e-3,
-    "lr_conv_ratio": 0.5,        # 🌟 Rasio LR untuk Layer Konvolusi CoLoRA (default: 0.1x Effective LR)
+    "learning_rate": 1e-4,
+    "effective_lr": 1e-4,
+    "lr_conv_ratio": 0.1,        # 🌟 Rasio LR untuk Layer Konvolusi CoLoRA (default: 0.1x Effective LR)
     "weight_decay": 1e-3,
     "max_epochs": 150,
     "warmup_epochs": 15,
