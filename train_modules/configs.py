@@ -122,4 +122,10 @@ def parse_args():
     parser.add_argument("--asl_gamma_neg", type=float, default=CONFIG["asl_gamma_neg"], help="Gamma negatif untuk Asymmetric Loss")
     parser.add_argument("--asl_margin", type=float, default=CONFIG["asl_margin"], help="Probability margin shift untuk ASL")
     parser.add_argument("--fece_gamma", type=float, default=CONFIG["fece_gamma"], help="Gamma parameter untuk F-ECE Loss")
+    parser.add_argument(
+        "--img_size",
+        type=int,
+        default=CONFIG["img_size"],
+        help="Ukuran resolusi citra input (224, 384, 512)",
+    )
     return parser.parse_args()

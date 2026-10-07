@@ -69,3 +69,6 @@ echo "================================================="
 
 # gdown 1tJR1wU1aeVBCP6AJKvjV9vK_DtEG5CTG -O data/turkey_3channel_noclahe.npz
 # gdown 15ZsEQfC6LeDV-XphkP3j9_WVXdvyxblc -O data/turkey_1channel_fixpad.npz
+
+# gdown 17j7ioDcVH4teAzaVJPq1sMkTNmyPUYJ9 -O data/dataset_1ch_384x384_nocrop.npz
+# gdown 17j7ioDcVH4teAzaVJPq1sMkTNmyPUYJ9 -O data/dataset_1ch_512x512_nocrop.npz
