@@ -443,8 +443,8 @@ def run_training_pipeline(model, raw_model, loaders, transforms, amp_params, log
 
     # 6. Eksekusi Evaluasi Akhir
     evaluate_best_checkpoints(
-        logger, device, criterion, class_counts, original_weights,
+        model, logger, device, criterion, class_counts, original_weights,
         best_mcc_epoch, best_loss_epoch, best_val_mcc, best_val_loss,
         path_best_val_mcc, path_best_val_loss,
         train_eval_loader, val_loader, test_loader, gpu_eval_transform
-    )
+    )   
