@@ -26,6 +26,13 @@ mkdir -p weights
 #     echo "✅ Dataset Turkey 1-Channel 224x224 With Crop sudah ada, melewati proses unduh."
 # fi
 
+if [ ! -f "data/dataset_1ch_224x224_nocrop.npz" ]; then
+    echo "Downloading dataset Turkey 1-Channel 224x224 Without Crop..."
+    gdown 1cE8QYMNgLMWhaQrBEtrjZpeH8FTF-fwi -O data/dataset_1ch_224x224_nocrop.npz
+else
+    echo "✅ Dataset Turkey 1-Channel 224x224 Without Crop sudah ada, melewati proses unduh."
+fi
+
 # if [ ! -f "data/turkey_1channel.npz" ]; then
 #     echo "Downloading dataset Turkey 1-Channel..."
 #     gdown 1HuSEUKz7PEFRAK75Q8RfcPUDiRr8Th_V -O data/turkey_1channel.npz

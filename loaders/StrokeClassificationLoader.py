@@ -103,14 +103,15 @@ def get_stroke_dataloaders(
         )
 
     # 5. Transformasi GPU On-The-Fly (Anatomy-Preserving CT Scan)
-    gpu_train_transform = v2.Compose([
+    # matikan horizontal flip dan gaussian blur
+    gpu_train_transform_trial3 = v2.Compose([
         v2.Lambda(
             lambda x: x.repeat(1, 3, 1, 1)
             if (x.ndim == 4 and x.shape[1] == 1 and num_channels == 3)
             else x
         ),
         v2.ToDtype(torch.float32, scale=False), 
-        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomHorizontalFlip(p=0.0),  # Dimatikan
         v2.RandomAffine(
             degrees=5,  # type: ignore
             translate=(0.03, 0.03), 
@@ -118,9 +119,6 @@ def get_stroke_dataloaders(
             interpolation=v2.InterpolationMode.BILINEAR,
             fill=0
         ),
-        v2.RandomApply([
-            v2.GaussianBlur(kernel_size=3, sigma=(0.1, 0.8))
-        ], p=0.3),
     ])
 
 
@@ -141,7 +139,7 @@ def get_stroke_dataloaders(
             train_loader,
             val_loader,
             num_classes,
-            gpu_train_transform,
+            gpu_train_transform_trial3,
             gpu_eval_transform,
         )
     else:
@@ -150,7 +148,7 @@ def get_stroke_dataloaders(
             val_loader,
             test_loader,
             num_classes,
-            gpu_train_transform,
+            gpu_train_transform_trial3,
             gpu_eval_transform,
         )
 
