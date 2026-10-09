@@ -265,4 +265,6 @@ tmux new -s train 'python train.py --experiment_code prodial-801010-384-nocrop -
 
 tmux new -s train 'python train.py --experiment_code prodial-801010-512-nocrop --npz_path data/dataset_1ch_512x512_nocrop.npz --img_size 512 2>&1 | tee train.log'
 
-tmux new -s train 'python train.py --experiment_code prodial-602020 --npz_path data/dataset_1ch_224x224_nocrop.npz --img_size 224 -- 2>&1 | tee train.log'
+tmux new -s train 'python train.py --experiment_code prodial-602020 --npz_path data/dataset_1ch_224x224_nocrop.npz --img_size 224 --split_config split_60_20_20 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-701515 --npz_path data/dataset_1ch_224x224_nocrop.npz --img_size 224 --split_config split_70_15_15 2>&1 | tee train.log'

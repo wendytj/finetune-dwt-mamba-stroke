@@ -7,26 +7,30 @@ import torchvision.transforms.v2 as v2
 from .debugger import unpack_split_info
 
 class StrokeNPZDataset(Dataset):
-    """Dataset class untuk memuat array NPZ CT Scan ke PyTorch Tensor."""
+  """Dataset class untuk memuat array NPZ CT Scan ke PyTorch Tensor."""
 
-    def __init__(self, images_array, labels_array):
-        # Konversi ke PyTorch Tensor
-        images_tensor = torch.from_numpy(images_array)
+  def __init__(self, images_array, labels_array):
+    # 1. Standardisasi Dimensi & Format Memori (C-Contiguous NCHW) di NumPy
+    if images_array.ndim == 3:  # [N, H, W] -> [N, 1, H, W]
+      images_array = np.expand_dims(images_array, axis=1)
+    elif (
+        images_array.ndim == 4 and images_array.shape[-1] in [1, 3]
+    ):  # [N, H, W, C] -> [N, C, H, W]
+      images_array = np.transpose(images_array, (0, 3, 1, 2))
 
-        # Standardisasi Dimensi ke [N, C, H, W] saja (tanpa duplikasi/slicing channel di RAM)
-        if images_tensor.ndim == 3:  # [N, H, W] -> [N, 1, H, W]
-            images_tensor = images_tensor.unsqueeze(1)
-        elif images_tensor.ndim == 4 and images_tensor.shape[-1] in [1, 3]:  # [N, H, W, C] -> [N, C, H, W]
-            images_tensor = images_tensor.permute(0, 3, 1, 2)
+    # 💡 KUNCI BEBAS LAG: Paksa memori RAM menjadi C-Contiguous secara eksplisit
+    images_array = np.ascontiguousarray(images_array)
+    labels_array = np.ascontiguousarray(labels_array)
 
-        self.images = images_tensor
-        self.labels = torch.from_numpy(labels_array).long().reshape(-1)
+    # 2. Zero-Copy Conversion ke PyTorch Tensor
+    self.images = torch.from_numpy(images_array)
+    self.labels = torch.from_numpy(labels_array).long().reshape(-1)
 
-    def __len__(self): 
-        return len(self.images)
+  def __len__(self):
+    return len(self.images)
 
-    def __getitem__(self, idx):
-        return self.images[idx], self.labels[idx]
+  def __getitem__(self, idx):
+    return self.images[idx], self.labels[idx]
 
 
 def get_stroke_dataloaders(
