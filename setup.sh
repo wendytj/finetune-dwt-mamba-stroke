@@ -72,3 +72,6 @@ echo "================================================="
 
 # gdown 17j7ioDcVH4teAzaVJPq1sMkTNmyPUYJ9 -O data/dataset_1ch_384x384_nocrop.npz
 # gdown 16tuI54qL7JNxXhj9WpqJCM-2v8UZNd67 -O data/dataset_1ch_512x512_nocrop.npz
+
+# gdown 1cE8QYMNgLMWhaQrBEtrjZpeH8FTF-fwi -O data/dataset_1ch_224x224_nocrop.npz
+

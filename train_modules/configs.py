@@ -2,6 +2,7 @@ import argparse
 
 CONFIG = {
     "experiment_code": "prodial-801010",   
+    "split_config": "split_80_10_10",
     "seed": 42,
     
     "num_classes": 3,
@@ -70,6 +71,12 @@ CONFIG = {
 
 def parse_args():
     parser = argparse.ArgumentParser(description="DWT-Mamba Modular Fine-Tuning Pipeline with PEFT")
+    parser.add_argument(
+        "--split_config",
+        type=str,
+        default=CONFIG["split_config"],
+        help="Skema dataset split (misal: split_80_10_10, split_70_15_15)",
+    )
     parser.add_argument("--batch_size", type=int, default=CONFIG["batch_size"])
     parser.add_argument("--accumulation_steps", type=int, default=CONFIG["accumulation_steps"])
     parser.add_argument("--num_workers", type=int, default=CONFIG["num_workers"])
