@@ -268,3 +268,20 @@ tmux new -s train 'python train.py --experiment_code prodial-801010-512-nocrop -
 tmux new -s train 'python train.py --experiment_code prodial-602020 --npz_path data/dataset_1ch_224x224_nocrop.npz --img_size 224 --split_config split_60_20_20 2>&1 | tee train.log'
 
 tmux new -s train 'python train.py --experiment_code prodial-701515 --npz_path data/dataset_1ch_224x224_nocrop.npz --img_size 224 --split_config split_70_15_15 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-re-32-rb-32 --prodial_r_eps 32 --prodial_r_b 32 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-re-32-rb-64 --prodial_r_eps 32 --prodial_r_b 64 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-re-64-rb-64 --prodial_r_eps 64 --prodial_r_b 64 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-re-64-rb-128 --prodial_r_eps 64 --prodial_r_b 128 2>&1 | tee train.log'
+
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-lr-25e-4 --learning_rate 2.5e-4 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-lr-5e-4 --learning_rate 5e-4 2>&1 | tee train.log'
+
+tmux new -s train 'python train.py --experiment_code prodial-sqrt-lr-1e-3 --learning_rate 1e-3 2>&1 | tee train.log'
+

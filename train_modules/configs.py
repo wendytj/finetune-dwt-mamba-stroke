@@ -59,7 +59,7 @@ CONFIG = {
     
     # Konfigurasi Optimizer & Pelatihan
     "optimizer": "AdamW",
-    "learning_rate": 1e-4,
+    "learning_rate": 5e-4,
     "effective_lr": 1e-4,
     "lr_conv_ratio": 0.1,        # 🌟 Rasio LR untuk Layer Konvolusi CoLoRA (default: 0.1x Effective LR)
     "weight_decay": 1e-3,
